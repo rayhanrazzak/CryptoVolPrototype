@@ -1015,7 +1015,13 @@ def render_trading_desk(data):
                 return et.strftime("%b %-d %-I:%M%p ET").replace("AM", "am").replace("PM", "pm")
             return fmt_expiry(bucket_analyses[0]["hours_to_expiry"])
         expiry_labels = [_expiry_label(expiry_buckets[k]) for k in bucket_keys]
-        sel_exp = st.radio("Expiry", expiry_labels, horizontal=True)
+        exp_col, refresh_col = st.columns([6, 1])
+        with exp_col:
+            sel_exp = st.radio("Expiry", expiry_labels, horizontal=True)
+        with refresh_col:
+            if st.button("↻", help="Refresh data"):
+                st.cache_data.clear()
+                st.rerun()
         sel_bucket = bucket_keys[expiry_labels.index(sel_exp)]
         # deduplicate by threshold within the bucket
         _seen = {}
@@ -1525,7 +1531,11 @@ def _estimate_market_forward(ranked_markets) -> float | None:
     return None
 
 
-def render_header(data):
+@st.fragment(run_every=30)
+def render_header(data=None):
+    # refetch on auto-refresh to get latest prices
+    if data is None:
+        data = fetch_all_data()
     spot = data["spot"]
     iv_data = data["iv_data"]
     rv_data = data["rv_data"]

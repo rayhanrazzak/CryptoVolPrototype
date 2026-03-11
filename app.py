@@ -1405,22 +1405,21 @@ def render_methodology():
 ### Market Selection
 
 Markets are discovered dynamically from Kalshi's API using the **KXBTCD** (threshold)
-and **KXBTC** (range) series. Ranked by a scoring function that prefers:
+series, grouped by expiry. Ranked by a scoring function that prefers:
 - Shorter time to expiry
-- Threshold-style contracts (cleaner to model)
 - Two-sided quotes (bid and ask both present)
 - Active volume and meaningful probability levels
 
-Markets with only one-sided quotes (zero bid) are flagged with reduced confidence —
+Markets with only one-sided quotes (zero bid) are flagged —
 the midpoint of 0/ask is not a meaningful probability estimate.
 
 ### Data Sources
 
 | Source | Data | Auth |
 |--------|------|------|
-| **CoinGecko** | BTC spot, 24h price history | Public |
-| **Deribit** | ~900 BTC options, DVOL index | Public |
+| **Deribit** | BTC spot (index), ~900 BTC options, DVOL | Public |
 | **Kalshi** | Market listings, pricing | Public |
+| **CoinGecko** | 24h price history for realized vol | Public |
 
 ### Implied Volatility
 
@@ -1436,7 +1435,7 @@ Falls back to the **DVOL index** (30-day IV) when no close match exists.
 
 ### Realized Volatility
 
-24h of BTC price data at ~5-minute intervals (CoinGecko).
+24h of BTC price data at ~5-minute intervals.
 Annualized standard deviation of log returns.
 
 ### IV-RV Blending
@@ -1454,19 +1453,16 @@ Annualized standard deviation of log returns.
 
 **Threshold markets** ("BTC above $K"):
 
-`P(S_T > K)` using a **Student-t CDF** (df=5):
+`P(S_T > K)` using a **Gaussian CDF** (log-normal framework):
 
-`d₂ = [ln(K/S₀) − 0.5σ²t] / (σ√t)`
+`d₂ = [ln(K/F) − 0.5σ²t] / (σ√t)`
 
-The t-distribution captures BTC's fat tails — large moves happen more often
-than a Gaussian predicts. df=5 is a standard pragmatic choice for crypto.
+where **F = Kalshi forward** (the prediction market's implied expected price),
+not spot. This centers the model on the market's directional view and isolates
+vol/skew-driven discrepancies. Gaussian was chosen over Student-t after
+calibration against live Kalshi data showed better fit.
 
-**Range markets** ("BTC between $A and $B"):
-
-`P(A ≤ S_T < B) = P(S_T > A) − P(S_T > B)`
-
-Zero drift assumed (reasonable for short horizons). Best available vol input
-used: strike-matched IV > DVOL > RV.
+Best available vol input used: strike-matched IV > DVOL > RV.
 
 ### Signal Generation
 
@@ -1491,10 +1487,11 @@ when unconfigured.
 
 ### Assumptions & Limitations
 
-- **Student-t df=5** approximates BTC's tail behavior but varies over time
+- **Forward-centered**: assumes the prediction market's directional view is correct
 - **Constant vol per horizon**: surface lookup helps but within-horizon
   clustering not modeled
-- **Zero drift**: ignores momentum, reasonable for short horizons
+- **Settlement basis**: Kalshi settles on CF Benchmarks BRTI; model uses Deribit index
+- **Risk-neutral vs physical**: options IV contains a risk premium
 - **No jump diffusion**: macro events create discrete gaps
 - **No microstructure**: order flow, slippage, market impact not modeled
 - **Prototype only**: signals are illustrative, not trading advice

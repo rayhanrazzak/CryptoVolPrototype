@@ -21,7 +21,7 @@ st.set_page_config(
     page_title="BTC Vol Desk",
     page_icon="₿",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="collapsed",
 )
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -55,12 +55,10 @@ st.markdown("""
     [data-testid="stAppViewContainer"] {
         background: var(--bg-deep);
     }
-    [data-testid="stSidebar"] {
-        background: var(--bg-card);
-        border-right: 1px solid var(--border);
-    }
-    [data-testid="stSidebar"] * {
-        font-family: 'Red Hat Display', sans-serif !important;
+    /* Hide sidebar entirely */
+    [data-testid="stSidebar"], [data-testid="stSidebarCollapsedControl"],
+    button[kind="header"] {
+        display: none !important;
     }
     h1, h2, h3, h4, h5, h6 {
         font-family: 'Playfair Display', serif !important;
@@ -805,34 +803,37 @@ def render_edge_bars(analyses):
     st.plotly_chart(fig, use_container_width=True)
 
 
-def render_price_chart(price_history, spot=None, thresholds=None):
-    """BTC price chart with optional threshold lines."""
+def render_price_chart(price_history, spot=None, threshold=None):
+    """BTC price chart auto-scaled to actual price range."""
     if price_history.empty:
         return
 
+    prices = price_history["price"]
+    y_min = prices.min()
+    y_max = prices.max()
+    y_pad = (y_max - y_min) * 0.15 or 100
+
     fig = go.Figure()
     fig.add_trace(go.Scatter(
-        x=price_history.index, y=price_history["price"],
+        x=price_history.index, y=prices,
         mode="lines", name="BTC/USD",
         line=dict(color=CHART_COLORS["btc"], width=2),
-        fill="tozeroy",
-        fillcolor="rgba(247, 147, 26, 0.04)",
     ))
 
-    if thresholds:
-        for thr in thresholds[:8]:
-            fig.add_hline(
-                y=thr, line_dash="dot", line_color="#38BDF8", opacity=0.2,
-                annotation_text=f"${thr/1000:.1f}k",
-                annotation_font=dict(size=9, color="#38BDF8"),
-                annotation_position="right",
-            )
+    # show a single threshold if provided (the contract being analyzed)
+    if threshold and y_min - y_pad < threshold < y_max + y_pad:
+        fig.add_hline(
+            y=threshold, line_dash="dot", line_color=CHART_COLORS["cyan"], opacity=0.5,
+            annotation_text=f"${threshold:,.0f}",
+            annotation_font=dict(size=10, color=CHART_COLORS["cyan"]),
+            annotation_position="right",
+        )
 
     fig.update_layout(**chart_layout(
-        title=dict(text="BTC Price — 24h", font=dict(size=14)),
-        height=300,
-        yaxis_title="USD",
-        yaxis=dict(tickformat="$,.0f", gridcolor="#1E2330"),
+        title=dict(text="BTC — 24h", font=dict(size=14)),
+        height=260,
+        yaxis=dict(tickformat="$,.0f", gridcolor="#252320",
+                   range=[y_min - y_pad, y_max + y_pad]),
     ))
     st.plotly_chart(fig, use_container_width=True)
 
@@ -941,19 +942,16 @@ def render_trading_desk(data):
 
     if not ranked:
         st.warning("No active BTC markets found on Kalshi.")
-        if data["errors"]:
-            with st.expander("API Errors"):
-                for e in data["errors"]:
-                    st.text(e)
         return
 
-    # ── Sidebar filters ────────────────────────────────────
-    with st.sidebar:
-        st.markdown('<p class="muted-label">Filters</p>', unsafe_allow_html=True)
+    # ── Inline filters ─────────────────────────────────────
+    f1, f2, f3 = st.columns(3)
+    with f1:
         show_type = st.radio("Market Type", ["All", "Threshold", "Range"], horizontal=True)
+    with f2:
         show_liq = st.radio("Liquidity", ["All", "Two-Sided"], horizontal=True)
-        min_vol = st.slider("Min Volume", 0, 500, 0, step=10)
-        n_show = st.slider("Display Count", 5, 40, 20)
+    with f3:
+        n_show = st.slider("Show", 5, 30, 15)
 
     # filter
     filtered = ranked
@@ -963,8 +961,6 @@ def render_trading_desk(data):
         filtered = [r for r in filtered if r["params"].get("market_type") == "range"]
     if show_liq == "Two-Sided":
         filtered = [r for r in filtered if r["params"].get("liquidity") == "two_sided"]
-    if min_vol > 0:
-        filtered = [r for r in filtered if (r["market"].get("volume") or 0) >= min_vol]
 
     # analyze
     analyses = []
@@ -985,16 +981,12 @@ def render_trading_desk(data):
             st.markdown(f'<div class="synthesis-card">{overview}</div>', unsafe_allow_html=True)
 
     # ── Market table ────────────────────────────────────────
-    st.markdown('<p class="section-title">Market Opportunities</p>', unsafe_allow_html=True)
-
     table_rows = []
     for a in analyses:
         p = a["params"]
         fv = a["fair_value"]
         sig = a["signal"]
         conf = a["confidence"]
-        iv_src = fv.get("iv_source", "—")
-        iv_short = {"strike_matched": "Matched", "dvol_fallback": "DVOL"}.get(iv_src, "—")
 
         table_rows.append({
             "Contract": fmt_label(p),
@@ -1003,10 +995,7 @@ def render_trading_desk(data):
             "Model": fmt_pct(fv.get("model_prob"), 0),
             "Edge": f"{sig['raw_edge']:+.1%}" if sig["raw_edge"] is not None else "—",
             "Signal": sig["signal"],
-            "IV Src": iv_short,
             "Conf": conf["confidence_label"],
-            "Liq": (p.get("liquidity") or "?").replace("_", " ").title(),
-            "Vol": p.get("volume") or 0,
         })
 
     df = pd.DataFrame(table_rows)
@@ -1023,33 +1012,24 @@ def render_trading_desk(data):
 
     styled = df.style.map(_style_sig, subset=["Signal"]).map(_style_conf, subset=["Conf"])
     st.dataframe(styled, use_container_width=True, hide_index=True,
-                 height=min(len(df) * 36 + 42, 620))
+                 height=min(len(df) * 36 + 42, 520))
 
-    # ── Charts row 1: Edge + Prob curves ─────────────────
+    # ── Two charts: the ones that matter ──────────────────
     c1, c2 = st.columns(2)
     with c1:
-        render_edge_bars(analyses)
-    with c2:
         if spot_price:
             render_prob_curves(analyses, spot_price)
-
-    # ── Charts row 2: Price + Edge scatter ───────────────
-    c3, c4 = st.columns(2)
-    with c3:
-        thresholds = [a["params"]["threshold"] for a in analyses
-                      if a["params"].get("threshold") and a["params"].get("market_type") == "threshold"]
-        render_price_chart(data["price_history"], spot_price, thresholds[:6])
-    with c4:
+    with c2:
         if spot_price:
             render_edge_scatter(analyses, spot_price)
 
-    # ── Actionable trades ─────────────────────────────────
+    # ── Top actionable trades ─────────────────────────────
     actionable = [a for a in analyses if a["signal"]["signal"] != "NO TRADE"]
-    show_list = actionable if actionable else analyses[:4]
+    show_list = actionable if actionable else analyses[:3]
 
     if show_list:
         st.markdown('<p class="section-title">Trade Detail</p>', unsafe_allow_html=True)
-        for i, a in enumerate(show_list[:6]):
+        for i, a in enumerate(show_list[:3]):
             _render_trade_card(a, expanded=(i == 0))
 
 
@@ -1089,53 +1069,24 @@ def _render_trade_card(analysis, expanded=False):
 def render_vol_analytics(data):
     spot_price = data["spot"].get("price")
     vol_surface = data["iv_data"].get("vol_surface")
-    iv = data["iv_data"].get("dvol")
-    rv = data["rv_data"].get("realized_vol")
 
     if not vol_surface or not vol_surface.get("surface"):
         st.warning("No Deribit vol surface data available.")
         return
 
-    n_opts = vol_surface.get("raw_count", 0)
-    n_expiries = len(vol_surface.get("expiries", []))
-    underlying = vol_surface.get("underlying", 0)
+    if not spot_price:
+        st.warning("No spot price available.")
+        return
 
-    # ── Surface summary ─────────────────────────────────
-    s1, s2, s3, s4, s5 = st.columns(5)
-    with s1:
-        st.metric("Options Loaded", f"{n_opts:,}")
-    with s2:
-        st.metric("Expiries", n_expiries)
-    with s3:
-        st.metric("DVOL (30d)", fmt_vol(iv))
-    with s4:
-        st.metric("Realized Vol", fmt_vol(rv))
-    with s5:
-        if iv and rv and rv > 0:
-            ratio = iv / rv
-            st.metric("IV/RV Ratio", f"{ratio:.2f}")
-        else:
-            st.metric("IV/RV Ratio", "—")
+    # ── Smile: the hero chart (full width) ────────────────
+    render_vol_smile(vol_surface, spot_price)
 
-    st.divider()
-
-    # ── Row 1: Smile + Term Structure ─────────────────────
+    # ── Term Structure + Skew Metrics ─────────────────────
     c1, c2 = st.columns([3, 2])
     with c1:
-        if spot_price:
-            render_vol_smile(vol_surface, spot_price)
+        render_term_structure(vol_surface, spot_price)
     with c2:
-        if spot_price:
-            render_term_structure(vol_surface, spot_price)
-
-    # ── Row 2: Heatmap + Skew Metrics ────────────────────
-    c3, c4 = st.columns([3, 2])
-    with c3:
-        if spot_price:
-            render_vol_heatmap(vol_surface, spot_price)
-    with c4:
-        if spot_price:
-            render_skew_metrics(vol_surface, spot_price)
+        render_skew_metrics(vol_surface, spot_price)
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1212,54 +1163,41 @@ def render_deep_dive(data):
         st.markdown(f'<div class="analysis-box">{analysis["explanation"]}</div>', unsafe_allow_html=True)
 
     with right:
-        # ── Market Data ───────────────────
-        st.markdown('<p class="muted-label">Market Data</p>', unsafe_allow_html=True)
-        meta_items = [
-            ("Type", (params.get("market_type") or "?").title()),
-            ("Direction", params.get("direction", "—")),
-            ("Threshold", f"${params['threshold']:,.0f}" if params["threshold"] else "—"),
-            ("Liquidity", (params.get("liquidity") or "unknown").replace("_", " ").title()),
-        ]
-        if params.get("range_low"):
-            meta_items.append(("Range", f"${params['range_low']:,.0f} – ${params['range_high']:,.0f}"))
-        meta_items.extend([
-            ("Bid / Ask", f"{params['yes_bid'] or '—'}¢ / {params['yes_ask'] or '—'}¢"),
-            ("Spread", f"{params['spread']:.1%}" if params["spread"] else "—"),
-            ("Volume", f"{params.get('volume', 0):,}"),
-            ("Open Interest", f"{params.get('open_interest', 0):,}" if params.get("open_interest") else "—"),
-        ])
-        for k, v in meta_items:
-            st.markdown(f"**{k}:** {v}")
+        # ── Pricing ──────────────────────
+        st.markdown('<p class="muted-label">Pricing</p>', unsafe_allow_html=True)
+        st.markdown(
+            f"**Bid / Ask:** {params['yes_bid'] or '—'}¢ / {params['yes_ask'] or '—'}¢ · "
+            f"**Spread:** {params['spread']:.1%}" if params["spread"] else ""
+        )
+        st.markdown(
+            f"**Liquidity:** {(params.get('liquidity') or '?').replace('_', ' ').title()} · "
+            f"**Volume:** {params.get('volume', 0):,}"
+        )
 
         st.divider()
 
-        # ── Volatility ───────────────────
+        # ── Volatility ──────────────────
         st.markdown('<p class="muted-label">Volatility</p>', unsafe_allow_html=True)
         matched_iv = fv.get("strike_matched_iv")
-        if matched_iv:
-            st.metric("Strike-Matched IV", f"{matched_iv:.1f}%")
-            method = fv.get("iv_detail", {}).get("method", "")
-            if method:
-                st.caption(f"Method: {method}")
-
-        v1, v2 = st.columns(2)
+        v1, v2, v3 = st.columns(3)
         with v1:
-            st.metric("DVOL", fmt_vol(iv))
+            st.metric("Strike IV", f"{matched_iv:.1f}%" if matched_iv else "—")
         with v2:
+            st.metric("DVOL", fmt_vol(iv))
+        with v3:
             st.metric("RV (24h)", fmt_vol(rv))
 
         regime = fv.get("vol_regime")
         if regime:
             regime_name = {"vol_expansion": "Expansion", "vol_compression": "Compression", "neutral": "Neutral"}.get(regime, regime)
             bw = fv.get("blend_weights", {})
-            st.metric("Regime", regime_name)
-            if bw:
-                st.caption(f"Blend: {bw.get('iv', 0):.0%} IV / {bw.get('rv', 0):.0%} RV")
+            blend_str = f" ({bw.get('iv',0):.0%} IV / {bw.get('rv',0):.0%} RV)" if bw else ""
+            st.caption(f"Regime: {regime_name}{blend_str}")
 
         st.divider()
 
-        # ── Probability Breakdown ─────────
-        st.markdown('<p class="muted-label">Probability Breakdown</p>', unsafe_allow_html=True)
+        # ── Model Breakdown ──────────────
+        st.markdown('<p class="muted-label">Model</p>', unsafe_allow_html=True)
         prob_items = []
         if fv.get("iv_fair_prob") is not None:
             prob_items.append(("IV-Based", fmt_pct(fv["iv_fair_prob"])))
@@ -1273,17 +1211,14 @@ def render_deep_dive(data):
         for label, val in prob_items:
             st.markdown(f"{label}: {val}")
 
+        st.metric("Confidence", f"{conf['confidence']:.0%}")
+        if conf["concerns"]:
+            st.caption(", ".join(conf["concerns"]))
+
         st.divider()
 
-        # ── Confidence ────────────────────
-        st.markdown('<p class="muted-label">Confidence</p>', unsafe_allow_html=True)
-        st.metric("Score", f"{conf['confidence']:.0%}")
-        if conf["concerns"]:
-            for c in conf["concerns"]:
-                st.caption(f"• {c}")
-
-    with st.expander("Raw Market JSON"):
-        st.json(entry["market"])
+        # ── Price context ────────────────
+        render_price_chart(data["price_history"], spot_price, params.get("threshold"))
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1403,7 +1338,7 @@ def render_header(data):
     iv_data = data["iv_data"]
     rv_data = data["rv_data"]
 
-    c1, c2, c3, c4, c5, c6 = st.columns(6)
+    c1, c2, c3, c4 = st.columns(4)
 
     with c1:
         if spot.get("price"):
@@ -1431,15 +1366,6 @@ def render_header(data):
         else:
             st.metric("Regime", "—")
 
-    with c5:
-        n_mkts = len(data["ranked_markets"])
-        st.metric("Markets", n_mkts)
-
-    with c6:
-        vs = data["iv_data"].get("vol_surface", {})
-        n_opts = vs.get("raw_count", 0)
-        st.metric("Options", f"{n_opts:,}")
-
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # Main
@@ -1459,7 +1385,7 @@ def main():
         data = fetch_all_data()
 
     if data["errors"]:
-        with st.sidebar.expander("Data Warnings", expanded=False):
+        with st.expander("Data Warnings", expanded=False):
             for e in data["errors"]:
                 st.warning(e)
 
@@ -1477,18 +1403,18 @@ def main():
     with t4:
         render_methodology()
 
-    # sidebar footer
-    st.sidebar.markdown("---")
-    if llm_explainer.is_available():
-        st.sidebar.markdown('<span class="liq-good">● Gemini Connected</span>', unsafe_allow_html=True)
-    else:
-        st.sidebar.caption("LLM synthesis: not configured")
-        st.sidebar.caption("Set GEMINI_API_KEY for trade notes")
-
-    st.sidebar.caption(f"Last refresh: {data['timestamp'].strftime('%H:%M:%S UTC')}")
-    if st.sidebar.button("Refresh"):
-        st.cache_data.clear()
-        st.rerun()
+    # footer — refresh + status
+    st.divider()
+    fc1, fc2, fc3 = st.columns([1, 1, 1])
+    with fc1:
+        st.caption(f"Last refresh: {data['timestamp'].strftime('%H:%M:%S UTC')}")
+    with fc2:
+        if llm_explainer.is_available():
+            st.caption("Gemini connected")
+    with fc3:
+        if st.button("Refresh Data"):
+            st.cache_data.clear()
+            st.rerun()
 
 
 if __name__ == "__main__":

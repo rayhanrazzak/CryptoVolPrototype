@@ -1090,12 +1090,8 @@ def render_trading_desk(data):
     selected = filtered_analyses[sel_idx]
     _render_contract_detail(selected)
 
-    # ── Discrepancy scatter in expander ─────────────────────
-    if spot_price and len(threshold_analyses) >= 3:
-        with st.expander("Discrepancy vs Distance from Spot"):
-            render_edge_scatter(analyses, spot_price)
 
-    # ── Full table in expander ─────────────────────────────
+# ── Full table in expander ─────────────────────────────
     with st.expander("All Contracts"):
         _render_contract_table(analyses)
 

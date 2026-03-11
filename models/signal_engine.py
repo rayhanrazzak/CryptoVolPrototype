@@ -128,7 +128,12 @@ def generate_signal(
     # adjust edge for confidence and spread
     adjusted_edge = raw_edge * confidence
     if spread is not None:
-        adjusted_edge -= spread * config.SPREAD_PENALTY_FACTOR
+        spread_cost = spread * config.SPREAD_PENALTY_FACTOR
+        # spread cost reduces edge magnitude toward zero but never flips direction
+        if adjusted_edge > 0:
+            adjusted_edge = max(adjusted_edge - spread_cost, 0.0)
+        elif adjusted_edge < 0:
+            adjusted_edge = min(adjusted_edge + spread_cost, 0.0)
 
     abs_edge = abs(adjusted_edge)
     threshold = config.MIN_EDGE_THRESHOLD

@@ -3,7 +3,7 @@ Deterministic explanation engine.
 Converts quantitative model outputs into concise natural-language commentary.
 
 No external API calls — all text is template-driven and deterministic.
-Structured so an LLM-backed explainer could replace this later.
+Structured so an API-backed explainer could replace this later.
 """
 
 

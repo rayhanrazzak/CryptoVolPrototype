@@ -18,7 +18,7 @@ import config
 
 
 st.set_page_config(
-    page_title="Vol Arb Terminal",
+    page_title="Crypto Vol Arb",
     page_icon="₿",
     layout="wide",
     initial_sidebar_state="collapsed",
@@ -1521,7 +1521,7 @@ def main():
     st.markdown(
         '<h1 style="font-family: \'Playfair Display\', serif; font-weight: 700; '
         'letter-spacing: -0.02em; margin-bottom: 0; font-size: 2rem;">'
-        'Vol Arb Terminal</h1>',
+        'Crypto Vol Arb</h1>',
         unsafe_allow_html=True,
     )
     st.caption("Live Kalshi market analysis · Deribit vol surface · Strike-matched IV")

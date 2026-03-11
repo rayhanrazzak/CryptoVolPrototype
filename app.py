@@ -1521,7 +1521,7 @@ def main():
     st.markdown(
         '<h1 style="font-family: \'Playfair Display\', serif; font-weight: 700; '
         'letter-spacing: -0.02em; margin-bottom: 0; font-size: 2rem;">'
-        '<span class="gold">₿</span> Vol Arb Terminal</h1>',
+        'Vol Arb Terminal</h1>',
         unsafe_allow_html=True,
     )
     st.caption("Live Kalshi market analysis · Deribit vol surface · Strike-matched IV")

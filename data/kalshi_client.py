@@ -94,9 +94,9 @@ def rank_btc_markets(markets: list[dict]) -> list[dict]:
     scored = []
 
     for m in markets:
-        # close_time is when the market settles; expiration_time is the latest
-        # possible settlement and can be days later
-        exp_str = m.get("expected_expiration_time") or m.get("close_time") or m.get("expiration_time")
+        # close_time is when trading ends; expiration_time is the latest possible
+        # settlement and can be days later
+        exp_str = m.get("close_time") or m.get("expected_expiration_time") or m.get("expiration_time")
         if not exp_str:
             continue
 

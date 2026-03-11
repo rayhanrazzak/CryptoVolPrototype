@@ -28,15 +28,14 @@ env/
 .DS_Store
 Thumbs.db
 
-# Private docs - not for push
+# Local notes
+*.local.md
 INTERVIEW_CHEATSHEET.md
 HOW_TO_TALK_ABOUT_THIS.md
 PRIVATE_NOTES.md
 DATA_FINDINGS.md
+CLAUDE.md
+.claude/
 
 # Cache
 .cache/
-
-# Project config
-CLAUDE.md
-.claude/

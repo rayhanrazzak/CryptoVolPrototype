@@ -180,7 +180,8 @@ st.markdown("""
     }
 
 /* Analysis card */
-    .analysis-box {
+
+.analysis-box {
         background: var(--bg-card);
         border-left: 3px solid var(--accent-teal);
         padding: 14px 18px;
@@ -1282,27 +1283,67 @@ def render_deep_dive(data):
         except Exception:
             continue
 
-    # sort by absolute discrepancy descending
-    pre_analyzed.sort(key=lambda x: x[2], reverse=True)
+    # sort: actionable signals first (BUY YES/NO), then NO TRADE; within each group by abs discrepancy desc
+    pre_analyzed.sort(key=lambda x: (x[1]["signal"]["signal"] == "NO TRADE", -x[2]))
 
-    labels = []
-    for r, a, abs_edge in pre_analyzed:
-        p = r["params"]
-        label = fmt_label(p)
-        exp = fmt_expiry(r["hours_to_expiry"])
-        edge = a["signal"].get("raw_edge")
-        edge_str = f" | Δ {edge:+.1%}" if edge is not None else ""
-        liq_warn = " ⚠" if p.get("liquidity") != "two_sided" else ""
-        labels.append(f"{label} ({exp}{edge_str}){liq_warn}")
+    # group pre-analyzed by expiry bucket
+    from zoneinfo import ZoneInfo
+    _dd_et = ZoneInfo("America/New_York")
+    _dd_buckets = {}
+    for item in pre_analyzed:
+        r, a, ae = item
+        h = r["hours_to_expiry"]
+        placed = False
+        for bh in _dd_buckets:
+            if abs(h - bh) < 1.0:
+                _dd_buckets[bh].append(item)
+                placed = True
+                break
+        if not placed:
+            _dd_buckets[h] = [item]
 
-    idx = st.selectbox("Select market:", range(len(labels)), format_func=lambda i: labels[i])
-    entry, analysis, _ = pre_analyzed[idx]
+    _dd_bucket_keys = sorted(_dd_buckets.keys())
+    def _dd_expiry_label(items):
+        exp = items[0][1].get("expiry")
+        if exp:
+            et = exp.astimezone(_dd_et)
+            return et.strftime("%b %-d %-I:%M%p ET").replace("AM", "am").replace("PM", "pm")
+        return fmt_expiry(items[0][0]["hours_to_expiry"])
 
-    try:
-        pass  # analysis already computed above
-    except Exception as e:
-        st.error(f"Analysis failed: {e}")
+    _dd_exp_labels = [_dd_expiry_label(_dd_buckets[k]) for k in _dd_bucket_keys]
+    sel_dd_exp = st.radio("Expiry", _dd_exp_labels, horizontal=True, key="dd_expiry", label_visibility="collapsed")
+    sel_dd_bucket = _dd_bucket_keys[_dd_exp_labels.index(sel_dd_exp)]
+    bucket_items = _dd_buckets[sel_dd_bucket]
+
+    # toggle: tradeable only vs all contracts
+    trade_only = st.toggle("Tradeable only", value=True, key="dd_trade_filter")
+
+    if trade_only:
+        filtered_items = [x for x in bucket_items if x[1]["signal"]["signal"] != "NO TRADE"]
+        # sort by abs discrepancy desc
+        filtered_items.sort(key=lambda x: x[2], reverse=True)
+    else:
+        filtered_items = sorted(bucket_items, key=lambda x: x[0]["params"].get("threshold") or 0)
+
+    if not filtered_items:
+        st.info("No tradeable contracts for this expiry.")
         return
+
+    # compact dropdown — much shorter when filtered to trades only
+    labels = []
+    for r, a, abs_edge in filtered_items:
+        p = r["params"]
+        thresh = f"${p['threshold']:,.0f}" if p.get("threshold") else p.get("title", "")
+        edge = a["signal"].get("raw_edge")
+        sig = a["signal"]["signal"]
+        if sig != "NO TRADE":
+            labels.append(f"{thresh} · {sig} · Δ{edge:+.1%}")
+        else:
+            labels.append(f"{thresh} · Δ{edge:+.1%}" if edge is not None else thresh)
+
+    idx = st.selectbox("Contract", range(len(labels)), format_func=lambda i: labels[i],
+                       label_visibility="collapsed")
+    entry, analysis, _ = filtered_items[idx]
 
     params = analysis["params"]
     fv = analysis["fair_value"]
@@ -1533,11 +1574,10 @@ def _estimate_market_forward(ranked_markets) -> float | None:
     return None
 
 
-@st.fragment(run_every=30)
-def render_header(data=None):
-    # refetch on auto-refresh to get latest prices
-    if data is None:
-        data = fetch_all_data()
+@st.fragment(run_every=10)
+def render_header(_initial_data=None):
+    # always refetch so the fragment gets fresh prices on each tick
+    data = fetch_all_data()
     spot = data["spot"]
     iv_data = data["iv_data"]
     rv_data = data["rv_data"]
@@ -1610,7 +1650,7 @@ def main():
         )
     with _refresh_col:
         st.markdown("<div style='height: 12px'></div>", unsafe_allow_html=True)
-        if st.button("↻ Refresh", key="top_refresh"):
+        if st.button("Update Data", key="top_refresh"):
             st.cache_data.clear()
             st.rerun()
     st.caption("Live Kalshi market analysis · Deribit vol surface · Strike-matched IV")

@@ -16,7 +16,7 @@ COINGECKO_BASE = "https://api.coingecko.com/api/v3"
 def get_btc_spot() -> dict:
     """Fetch current BTC/USD spot price and 24h change."""
     cache_key = "spot_btc_spot"
-    cached = get_cached(cache_key, ttl_seconds=30)
+    cached = get_cached(cache_key, ttl_seconds=15)
     if cached is not None:
         return cached
 

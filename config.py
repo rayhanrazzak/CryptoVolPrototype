@@ -19,7 +19,7 @@ DERIBIT_API_BASE = "https://www.deribit.com/api/v2"
 BTC_SPOT_SOURCE = os.getenv("BTC_SPOT_SOURCE", "coingecko")
 
 # Model parameters
-MIN_EDGE_THRESHOLD = 0.05       # 5% minimum edge for signal
+MIN_EDGE_THRESHOLD = 0.025      # 2.5% minimum edge for signal
 CONFIDENCE_PENALTY = 0.02       # penalize edge if data quality is weak
 SPREAD_PENALTY_FACTOR = 0.5     # fraction of spread to deduct from edge
 
@@ -48,4 +48,4 @@ REALIZED_VOL_SAMPLE_MINUTES = 5 # sampling frequency for returns
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 # Refresh
-REFRESH_INTERVAL = int(os.getenv("REFRESH_INTERVAL_SECONDS", "30"))
+REFRESH_INTERVAL = int(os.getenv("REFRESH_INTERVAL_SECONDS", "10"))

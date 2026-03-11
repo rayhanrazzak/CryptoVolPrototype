@@ -27,7 +27,7 @@ def discover_btc_events(limit: int = 10) -> list[dict]:
     KXBTCD = threshold-style, KXBTC = range-style.
     """
     cache_key = f"kalshi_btc_events_{limit}"
-    cached = get_cached(cache_key, ttl_seconds=30)
+    cached = get_cached(cache_key, ttl_seconds=10)
     if cached is not None:
         return cached
 
@@ -61,7 +61,7 @@ def discover_btc_markets() -> list[dict]:
     Enriches each market with parsed metadata.
     """
     cache_key = "kalshi_btc_markets"
-    cached = get_cached(cache_key, ttl_seconds=30)
+    cached = get_cached(cache_key, ttl_seconds=10)
     if cached is not None:
         return cached
 

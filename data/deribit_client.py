@@ -51,7 +51,7 @@ def get_btc_dvol() -> dict:
     Returns annualized vol as a percentage (e.g., 55.0 means 55% ann. vol).
     """
     cache_key = "deribit_btc_dvol"
-    cached = get_cached(cache_key, ttl_seconds=30)
+    cached = get_cached(cache_key, ttl_seconds=10)
     if cached is not None:
         return cached
 

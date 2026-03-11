@@ -1054,21 +1054,40 @@ def render_trading_desk(data):
                 st.markdown(f'<div class="synthesis-card">{chart_note}</div>', unsafe_allow_html=True)
 
     # ── Contract selector ──────────────────────────────────
-    contract_labels = [
-        f"{fmt_label(a['params'])} · {fmt_expiry(a['hours_to_expiry'])} · "
-        f"Δ {a['signal']['raw_edge']:+.1%}" if a["signal"]["raw_edge"] is not None
-        else f"{fmt_label(a['params'])} · {fmt_expiry(a['hours_to_expiry'])}"
-        for a in analyses
-    ]
-
     st.markdown('<p class="section-title">Select Contract</p>', unsafe_allow_html=True)
+    trade_only_ov = st.toggle("Tradeable only", value=True, key="ov_trade_filter")
+
+    if trade_only_ov:
+        filtered_analyses = [a for a in analyses
+                             if a["signal"]["signal"] != "NO TRADE"
+                             and a["params"].get("liquidity") == "two_sided"]
+        filtered_analyses.sort(key=lambda a: abs(a["signal"].get("raw_edge") or 0), reverse=True)
+    else:
+        filtered_analyses = analyses
+
+    if not filtered_analyses:
+        st.info("No tradeable contracts for this expiry.")
+        filtered_analyses = analyses  # fall back to all
+
+    contract_labels = []
+    for a in filtered_analyses:
+        edge = a["signal"].get("raw_edge")
+        sig = a["signal"]["signal"]
+        label = fmt_label(a["params"])
+        if sig != "NO TRADE" and edge is not None:
+            contract_labels.append(f"{label} · {sig} · Δ{edge:+.1%}")
+        elif edge is not None:
+            contract_labels.append(f"{label} · Δ{edge:+.1%}")
+        else:
+            contract_labels.append(label)
+
     sel_idx = st.selectbox(
         "Contract", range(len(contract_labels)),
         format_func=lambda i: contract_labels[i],
         label_visibility="collapsed",
     )
 
-    selected = analyses[sel_idx]
+    selected = filtered_analyses[sel_idx]
     _render_contract_detail(selected)
 
     # ── Discrepancy scatter in expander ─────────────────────
@@ -1319,7 +1338,9 @@ def render_deep_dive(data):
     trade_only = st.toggle("Tradeable only", value=True, key="dd_trade_filter")
 
     if trade_only:
-        filtered_items = [x for x in bucket_items if x[1]["signal"]["signal"] != "NO TRADE"]
+        filtered_items = [x for x in bucket_items
+                          if x[1]["signal"]["signal"] != "NO TRADE"
+                          and x[0]["params"].get("liquidity") == "two_sided"]
         # sort by abs discrepancy desc
         filtered_items.sort(key=lambda x: x[2], reverse=True)
     else:

@@ -28,9 +28,15 @@ st.set_page_config(
 # Theme & CSS
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+st.markdown(
+    '<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700'
+    '&family=Red+Hat+Display:wght@300;400;500;600;700'
+    '&family=Azeret+Mono:wght@400;500;600&display=swap" rel="stylesheet">',
+    unsafe_allow_html=True,
+)
+
 st.markdown("""
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Red+Hat+Display:wght@300;400;500;600;700&family=Azeret+Mono:wght@400;500;600&display=swap');
 
     :root {
         --bg-deep: #F8F7F5;
@@ -157,7 +163,8 @@ st.markdown("""
     .conf-med { color: #9A7B4F; }
     .conf-low { color: #B83B36; }
 
-    /* Synthesis card */
+
+/* Synthesis card */
     .synthesis-card {
         background: var(--bg-card);
         border-left: 3px solid var(--synthesis);
@@ -172,7 +179,7 @@ st.markdown("""
         color: var(--text-primary);
     }
 
-    /* Analysis card */
+/* Analysis card */
     .analysis-box {
         background: var(--bg-card);
         border-left: 3px solid var(--accent-teal);
@@ -625,7 +632,7 @@ def render_vol_smile(vol_surface, spot):
     )
 
     fig.update_layout(**chart_layout(
-        title=dict(text="Volatility Smile", font=dict(size=14)),
+        title=dict(text="Volatility Smile", font=dict(size=14, family="Georgia, serif", color="#1A1814")),
         xaxis_title="Strike ($)", yaxis_title="Implied Volatility (%)",
         height=380,
         xaxis=dict(tickformat="$,.0f", gridcolor="#ECEAE6"),
@@ -665,7 +672,7 @@ def render_term_structure(vol_surface, spot):
     ))
 
     fig.update_layout(**chart_layout(
-        title=dict(text="ATM Term Structure", font=dict(size=14)),
+        title=dict(text="ATM Term Structure", font=dict(size=14, family="Georgia, serif", color="#1A1814")),
         xaxis_title="Hours to Expiry", yaxis_title="ATM IV (%)",
         height=340,
         xaxis=dict(type="log"),
@@ -722,7 +729,7 @@ def render_vol_heatmap(vol_surface, spot):
     ))
 
     fig.update_layout(**chart_layout(
-        title=dict(text="Volatility Surface", font=dict(size=14)),
+        title=dict(text="Volatility Surface", font=dict(size=14, family="Georgia, serif", color="#1A1814")),
         height=420,
         xaxis_title="Expiry", yaxis_title="Strike",
     ))
@@ -788,7 +795,7 @@ def render_edge_scatter(analyses, spot):
     )
 
     fig.update_layout(**chart_layout(
-        title=dict(text="Discrepancy vs Distance from Spot", font=dict(size=14)),
+        title=dict(text="Discrepancy vs Distance from Spot", font=dict(size=14, family="Georgia, serif", color="#1A1814")),
         xaxis_title="Distance from Spot (%)",
         yaxis_title="Discrepancy: Model − Market (%)",
         height=380,
@@ -826,7 +833,7 @@ def render_price_chart(price_history, spot=None, threshold=None):
         )
 
     fig.update_layout(**chart_layout(
-        title=dict(text="BTC — 24h", font=dict(size=14)),
+        title=dict(text="BTC — 24h", font=dict(size=14, family="Georgia, serif", color="#1A1814")),
         height=260,
         yaxis=dict(tickformat="$,.0f", gridcolor="#ECEAE6",
                    range=[y_min - y_pad, y_max + y_pad]),
@@ -882,7 +889,7 @@ def render_prob_comparison_detail(params, fv, sig):
         )
 
     fig.update_layout(**chart_layout(
-        title=dict(text="Probability Comparison", font=dict(size=14)),
+        title=dict(text="Probability Comparison", font=dict(size=14, family="Georgia, serif", color="#1A1814")),
         height=300,
         yaxis_tickformat=".0%",
         yaxis_range=[0, max(vals) * 1.3] if vals else [0, 1],
@@ -1015,13 +1022,7 @@ def render_trading_desk(data):
                 return et.strftime("%b %-d %-I:%M%p ET").replace("AM", "am").replace("PM", "pm")
             return fmt_expiry(bucket_analyses[0]["hours_to_expiry"])
         expiry_labels = [_expiry_label(expiry_buckets[k]) for k in bucket_keys]
-        exp_col, refresh_col = st.columns([6, 1])
-        with exp_col:
-            sel_exp = st.radio("Expiry", expiry_labels, horizontal=True)
-        with refresh_col:
-            if st.button("↻", help="Refresh data"):
-                st.cache_data.clear()
-                st.rerun()
+        sel_exp = st.radio("Expiry", expiry_labels, horizontal=True, label_visibility="collapsed")
         sel_bucket = bucket_keys[expiry_labels.index(sel_exp)]
         # deduplicate by threshold within the bucket
         _seen = {}
@@ -1037,7 +1038,8 @@ def render_trading_desk(data):
         chart_forward = _estimate_market_forward(threshold_analyses)
         _render_hero_chart(threshold_analyses, spot_price, forward=chart_forward)
 
-        # LLM analysis of the chart data (cached in session to avoid repeat API calls)
+
+# LLM analysis of the chart data (cached in session to avoid repeat API calls)
         if llm_explainer.is_available():
             cache_key = f"chart_llm_{sel_exp}" if 'sel_exp' in dir() else "chart_llm"
             if cache_key not in st.session_state:
@@ -1129,7 +1131,7 @@ def _render_hero_chart(threshold_analyses, spot, forward=None):
     fig.update_layout(**chart_layout(
         title=dict(
             text="Options Market vs Prediction Market",
-            font=dict(size=16, family="Playfair Display, serif"),
+            font=dict(size=15, family="Georgia, serif", color="#1A1814"),
         ),
         xaxis_title="BTC Threshold ($)",
         yaxis_title="P(BTC Above Threshold)",
@@ -1598,12 +1600,19 @@ def render_header(data=None):
 
 def main():
     # title
-    st.markdown(
-        '<h1 style="font-family: \'Playfair Display\', serif; font-weight: 700; '
-        'letter-spacing: -0.02em; margin-bottom: 0; font-size: 2rem;">'
-        'Crypto Vol Arb</h1>',
-        unsafe_allow_html=True,
-    )
+    _title_col, _refresh_col = st.columns([8, 1])
+    with _title_col:
+        st.markdown(
+            '<h1 style="font-family: \'Playfair Display\', serif; font-weight: 700; '
+            'letter-spacing: -0.02em; margin-bottom: 0; font-size: 2rem;">'
+            'Crypto Vol Arb</h1>',
+            unsafe_allow_html=True,
+        )
+    with _refresh_col:
+        st.markdown("<div style='height: 12px'></div>", unsafe_allow_html=True)
+        if st.button("↻ Refresh", key="top_refresh"):
+            st.cache_data.clear()
+            st.rerun()
     st.caption("Live Kalshi market analysis · Deribit vol surface · Strike-matched IV")
 
     with st.spinner("Loading live data..."):
@@ -1617,7 +1626,7 @@ def main():
     render_header(data)
     st.divider()
 
-    t1, t2, t3, t4 = st.tabs(["Trading Desk", "Vol Analytics", "Deep Dive", "Methodology"])
+    t1, t2, t3, t4 = st.tabs(["Overview", "Vol Surface", "Single Contract", "Methodology"])
 
     with t1:
         render_trading_desk(data)
@@ -1628,18 +1637,14 @@ def main():
     with t4:
         render_methodology()
 
-    # footer — refresh + status
+    # footer — status
     st.divider()
-    fc1, fc2, fc3 = st.columns([1, 1, 1])
+    fc1, fc2 = st.columns(2)
     with fc1:
         st.caption(f"Last refresh: {data['timestamp'].strftime('%H:%M:%S UTC')}")
     with fc2:
         if llm_explainer.is_available():
             st.caption("Gemini connected")
-    with fc3:
-        if st.button("Refresh Data"):
-            st.cache_data.clear()
-            st.rerun()
 
 
 if __name__ == "__main__":

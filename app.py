@@ -1113,7 +1113,7 @@ def _render_hero_chart(threshold_analyses, spot, forward=None):
 
     # Kalshi forward reference (what the model is centered on)
     ref_price = forward if forward else spot
-    ref_label = "Kalshi Forward" if forward else "BTC Spot"
+    ref_label = f"Kalshi Fwd ${ref_price:,.0f}" if forward else f"BTC Spot ${spot:,.0f}"
     fig.add_vline(
         x=ref_price, line_dash="dash", line_color=CHART_COLORS["btc"], line_width=1.5,
         annotation_text=ref_label, annotation_position="top",

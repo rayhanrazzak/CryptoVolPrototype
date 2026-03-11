@@ -44,5 +44,8 @@ LIQUIDITY_PENALTY_NO_QUOTES = 0.35  # confidence penalty for no-quote markets
 REALIZED_VOL_WINDOW_HOURS = 24  # lookback for realized vol
 REALIZED_VOL_SAMPLE_MINUTES = 5 # sampling frequency for returns
 
+# Gemini (optional, free tier for trade synthesis)
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+
 # Refresh
 REFRESH_INTERVAL = int(os.getenv("REFRESH_INTERVAL_SECONDS", "30"))

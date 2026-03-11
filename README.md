@@ -10,13 +10,14 @@ A live prototype that compares Kalshi BTC prediction market probabilities agains
 - **IV-RV regime blending** -- blends implied and realized vol based on their ratio as a vol regime signal
 - **Fat-tail adjustment** -- Student-t probability (df=5) instead of normal CDF for more realistic BTC tail risk
 - **Liquidity-aware pricing** -- flags one-sided quotes and applies confidence penalties for illiquid markets
+- **Vol surface analytics** -- interactive smile, term structure, heatmap, and skew metrics
 - **Mock paper-trade signals** -- BUY YES / BUY NO / NO TRADE based on edge, spread cost, and confidence
-- **Deterministic explanation engine** -- concise natural-language commentary surfacing IV source, vol regime, and tail adjustments
+- **Optional trade synthesis** -- concise trade notes via Google Gemini (free tier) when configured, deterministic fallback otherwise
 
 ## Architecture
 
 ```
-app.py                  # Streamlit dashboard (3 tabs: Dashboard, Market Details, Methodology)
+app.py                  # Streamlit dashboard (4 tabs)
 config.py               # Model parameters, blending weights, tail distribution settings
 data/
   kalshi_client.py      # Kalshi market discovery, pricing, and liquidity classification
@@ -26,7 +27,7 @@ models/
   vol_model.py          # Strike-matched IV lookup, Student-t probability, IV-RV blending
   signal_engine.py      # Edge-based signal generation with liquidity-aware confidence
   explainer.py          # Deterministic natural-language explanation engine
-utils/
+  llm_explainer.py      # Optional Gemini-powered trade synthesis
 ```
 
 ## Setup
@@ -43,7 +44,7 @@ Copy the example environment file and fill in values if needed:
 cp .env.example .env
 ```
 
-All functionality works with public endpoints and requires no API keys.
+All core functionality works with public endpoints and requires no API keys.
 
 ## Environment Variables
 
@@ -51,6 +52,7 @@ All functionality works with public endpoints and requires no API keys.
 |---|---|---|
 | `KALSHI_API_KEY` | No | Kalshi API key (public endpoints used by default) |
 | `KALSHI_PRIVATE_KEY_PATH` | No | Path to Kalshi private key file |
+| `GEMINI_API_KEY` | No | Google Gemini API key for trade synthesis (free tier) |
 
 ## How to Run
 
@@ -59,6 +61,13 @@ streamlit run app.py
 ```
 
 The dashboard opens at `http://localhost:8501`.
+
+## Dashboard Tabs
+
+1. **Trading Desk** -- ranked market opportunities, edge distribution, probability curves, BTC price with threshold overlays, actionable trade detail
+2. **Vol Analytics** -- interactive volatility smile showing put skew, ATM term structure, vol surface heatmap, skew metrics by tenor
+3. **Deep Dive** -- single-market analysis with probability comparison, vol breakdown, regime classification, and optional trade synthesis
+4. **Methodology** -- full model documentation
 
 ## Methodology
 
@@ -104,7 +113,9 @@ When both IV and RV are available, they are blended based on their ratio:
 ## Demo Flow
 
 1. Open the dashboard (`streamlit run app.py`)
-2. The **Dashboard** tab shows ranked BTC markets with market probability, model probability, edge, signal, IV source, and confidence
-3. Use sidebar filters to focus on threshold vs range markets, two-sided liquidity, and minimum volume
-4. Click into **Market Details** for a specific contract: vol surface lookup, regime analysis, tail adjustment, probability breakdown
-5. Read the **Methodology** tab for the full approach, including vol surface construction, t-distribution rationale, and IV-RV blending logic
+2. **Trading Desk** shows ranked BTC markets with edge, signal, and confidence
+3. Use sidebar filters to focus on threshold vs range markets, two-sided liquidity
+4. Charts show edge distribution, market vs model probability curves, and BTC price with threshold overlays
+5. **Vol Analytics** reveals the options skew, term structure, and full surface heatmap
+6. **Deep Dive** into a specific contract for vol breakdown, regime analysis, and optional trade synthesis
+7. **Methodology** tab documents the full approach

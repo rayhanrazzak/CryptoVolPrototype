@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# Environment variables / secrets
+.env
+*.pem
+*.key
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Private docs - not for push
+INTERVIEW_CHEATSHEET.md
+HOW_TO_TALK_ABOUT_THIS.md
+PRIVATE_NOTES.md
+
+# Claude
+CLAUDE.md
+.claude/

@@ -30,26 +30,26 @@ st.set_page_config(
 
 st.markdown("""
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,700&family=Lexend:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Red+Hat+Display:wght@300;400;500;600;700&family=Azeret+Mono:wght@400;500;600&display=swap');
 
     :root {
-        --bg-deep: #0B0D11;
-        --bg-card: #111318;
-        --bg-elevated: #181C24;
-        --border: #1E2330;
-        --border-subtle: #161A22;
-        --text-primary: #E2E8F0;
-        --text-secondary: #94A3B8;
-        --text-muted: #64748B;
-        --accent-gold: #E8B931;
-        --accent-cyan: #38BDF8;
-        --signal-long: #34D399;
-        --signal-short: #F87171;
-        --synthesis: #C084FC;
+        --bg-deep: #0C0B09;
+        --bg-card: #141310;
+        --bg-elevated: #1A1916;
+        --border: #252320;
+        --border-subtle: #1C1B18;
+        --text-primary: #E8E4DE;
+        --text-secondary: #A09A90;
+        --text-muted: #706A60;
+        --accent-copper: #C9A87C;
+        --accent-teal: #6BA3BE;
+        --signal-long: #7AB87A;
+        --signal-short: #C75B5B;
+        --synthesis: #B08FC7;
     }
 
     html, body, [data-testid="stAppViewContainer"], [data-testid="stApp"] {
-        font-family: 'Lexend', sans-serif !important;
+        font-family: 'Red Hat Display', sans-serif !important;
         color: var(--text-primary);
     }
     [data-testid="stAppViewContainer"] {
@@ -60,40 +60,40 @@ st.markdown("""
         border-right: 1px solid var(--border);
     }
     [data-testid="stSidebar"] * {
-        font-family: 'Lexend', sans-serif !important;
+        font-family: 'Red Hat Display', sans-serif !important;
     }
     h1, h2, h3, h4, h5, h6 {
-        font-family: 'Lexend', sans-serif !important;
-        font-weight: 600 !important;
-        letter-spacing: -0.02em;
+        font-family: 'Playfair Display', serif !important;
+        font-weight: 700 !important;
+        letter-spacing: -0.01em;
     }
     code, pre, .stCode, [data-testid="stMetricValue"] {
-        font-family: 'IBM Plex Mono', monospace !important;
+        font-family: 'Azeret Mono', monospace !important;
     }
 
     /* Metric cards */
     div[data-testid="stMetric"] {
         background: var(--bg-card);
         border: 1px solid var(--border);
-        border-radius: 8px;
+        border-radius: 6px;
         padding: 14px 16px;
     }
     div[data-testid="stMetricLabel"] {
-        font-family: 'Lexend', sans-serif !important;
-        font-size: 0.7rem !important;
-        font-weight: 500;
-        letter-spacing: 0.06em;
+        font-family: 'Red Hat Display', sans-serif !important;
+        font-size: 0.68rem !important;
+        font-weight: 600;
+        letter-spacing: 0.08em;
         text-transform: uppercase;
         color: var(--text-muted) !important;
     }
     div[data-testid="stMetricValue"] {
-        font-family: 'IBM Plex Mono', monospace !important;
-        font-size: 1.4rem !important;
+        font-family: 'Azeret Mono', monospace !important;
+        font-size: 1.35rem !important;
         font-weight: 600;
         color: var(--text-primary) !important;
     }
     [data-testid="stMetricDelta"] {
-        font-family: 'IBM Plex Mono', monospace !important;
+        font-family: 'Azeret Mono', monospace !important;
     }
 
     /* Tab styling */
@@ -102,72 +102,72 @@ st.markdown("""
         border-bottom: 1px solid var(--border);
     }
     .stTabs [data-baseweb="tab"] {
-        font-family: 'Lexend', sans-serif !important;
-        font-weight: 500;
-        font-size: 0.85rem;
-        letter-spacing: 0.04em;
+        font-family: 'Red Hat Display', sans-serif !important;
+        font-weight: 600;
+        font-size: 0.82rem;
+        letter-spacing: 0.05em;
         padding: 10px 24px;
         color: var(--text-muted);
         border-bottom: 2px solid transparent;
     }
     .stTabs [aria-selected="true"] {
-        color: var(--accent-gold) !important;
-        border-bottom: 2px solid var(--accent-gold) !important;
+        color: var(--accent-copper) !important;
+        border-bottom: 2px solid var(--accent-copper) !important;
         background: transparent !important;
     }
 
     /* Signal badges */
     .sig-long {
-        background: rgba(52, 211, 153, 0.12);
-        color: #34D399;
+        background: rgba(122, 184, 122, 0.1);
+        color: #7AB87A;
         padding: 5px 14px;
-        border-radius: 4px;
-        font-family: 'IBM Plex Mono', monospace;
+        border-radius: 3px;
+        font-family: 'Azeret Mono', monospace;
         font-weight: 600;
-        font-size: 0.8rem;
+        font-size: 0.78rem;
         letter-spacing: 0.04em;
         display: inline-block;
-        border: 1px solid rgba(52, 211, 153, 0.25);
+        border: 1px solid rgba(122, 184, 122, 0.2);
     }
     .sig-short {
-        background: rgba(248, 113, 113, 0.12);
-        color: #F87171;
+        background: rgba(199, 91, 91, 0.1);
+        color: #C75B5B;
         padding: 5px 14px;
-        border-radius: 4px;
-        font-family: 'IBM Plex Mono', monospace;
+        border-radius: 3px;
+        font-family: 'Azeret Mono', monospace;
         font-weight: 600;
-        font-size: 0.8rem;
+        font-size: 0.78rem;
         letter-spacing: 0.04em;
         display: inline-block;
-        border: 1px solid rgba(248, 113, 113, 0.25);
+        border: 1px solid rgba(199, 91, 91, 0.2);
     }
     .sig-flat {
-        background: rgba(100, 116, 139, 0.12);
-        color: #94A3B8;
+        background: rgba(112, 106, 96, 0.1);
+        color: #A09A90;
         padding: 5px 14px;
-        border-radius: 4px;
-        font-family: 'IBM Plex Mono', monospace;
+        border-radius: 3px;
+        font-family: 'Azeret Mono', monospace;
         font-weight: 600;
-        font-size: 0.8rem;
+        font-size: 0.78rem;
         letter-spacing: 0.04em;
         display: inline-block;
-        border: 1px solid rgba(100, 116, 139, 0.2);
+        border: 1px solid rgba(112, 106, 96, 0.15);
     }
 
     /* Confidence colors */
-    .conf-high { color: #34D399; }
-    .conf-med { color: #E8B931; }
-    .conf-low { color: #F87171; }
+    .conf-high { color: #7AB87A; }
+    .conf-med { color: #C9A87C; }
+    .conf-low { color: #C75B5B; }
 
     /* Synthesis card */
     .synthesis-card {
         background: var(--bg-card);
         border-left: 3px solid var(--synthesis);
         padding: 16px 20px;
-        border-radius: 0 8px 8px 0;
+        border-radius: 0 6px 6px 0;
         margin: 12px 0;
-        font-size: 0.9rem;
-        line-height: 1.65;
+        font-size: 0.88rem;
+        line-height: 1.7;
         color: var(--text-secondary);
     }
     .synthesis-card strong {
@@ -177,12 +177,12 @@ st.markdown("""
     /* Analysis card */
     .analysis-box {
         background: var(--bg-card);
-        border-left: 3px solid var(--accent-cyan);
+        border-left: 3px solid var(--accent-teal);
         padding: 14px 18px;
         border-radius: 0 6px 6px 0;
         margin: 8px 0;
-        font-size: 0.88rem;
-        line-height: 1.6;
+        font-size: 0.86rem;
+        line-height: 1.65;
         color: var(--text-secondary);
     }
 
@@ -190,58 +190,75 @@ st.markdown("""
     .overview-card {
         background: var(--bg-card);
         border: 1px solid var(--border);
-        border-radius: 8px;
+        border-radius: 6px;
         padding: 18px 22px;
         margin: 8px 0;
     }
 
     /* Liquidity badge */
-    .liq-good { color: #34D399; font-weight: 500; }
-    .liq-warn { color: #E8B931; font-weight: 500; }
-    .liq-bad { color: #F87171; font-weight: 500; }
+    .liq-good { color: #7AB87A; font-weight: 500; }
+    .liq-warn { color: #C9A87C; font-weight: 500; }
+    .liq-bad { color: #C75B5B; font-weight: 500; }
 
     /* Muted label */
     .muted-label {
-        font-family: 'Lexend', sans-serif;
-        font-size: 0.7rem;
-        font-weight: 500;
-        letter-spacing: 0.06em;
+        font-family: 'Instrument Sans', 'Red Hat Display', sans-serif;
+        font-size: 0.68rem;
+        font-weight: 600;
+        letter-spacing: 0.08em;
         text-transform: uppercase;
         color: var(--text-muted);
         margin-bottom: 4px;
     }
 
-    /* Gold accent text */
-    .gold { color: var(--accent-gold); }
-    .cyan { color: var(--accent-cyan); }
+    /* Accent text */
+    .gold { color: var(--accent-copper); }
+    .cyan { color: var(--accent-teal); }
 
     /* Divider override */
     hr {
         border-color: var(--border) !important;
         margin: 16px 0 !important;
+        opacity: 0.6;
     }
 
     /* Dataframe styling */
     .stDataFrame {
         border: 1px solid var(--border);
-        border-radius: 6px;
+        border-radius: 12px;
+        overflow: hidden;
     }
 
-    /* Expander */
+    /* Expander — Apple-like rounded card */
     details {
         border: 1px solid var(--border) !important;
-        border-radius: 6px !important;
+        border-radius: 12px !important;
         background: var(--bg-card) !important;
+    }
+    details summary {
+        font-family: 'Red Hat Display', sans-serif !important;
+        font-weight: 500;
     }
 
     /* Section title */
     .section-title {
-        font-family: 'Lexend', sans-serif;
-        font-weight: 600;
-        font-size: 1.05rem;
+        font-family: 'Playfair Display', serif;
+        font-weight: 700;
+        font-size: 1.1rem;
         color: var(--text-primary);
-        margin: 20px 0 10px 0;
+        margin: 24px 0 12px 0;
         letter-spacing: -0.01em;
+    }
+
+    /* Apple-style smooth scrolling */
+    * { scroll-behavior: smooth; }
+
+    /* Selectbox / input styling */
+    [data-testid="stSelectbox"] label {
+        font-family: 'Red Hat Display', sans-serif !important;
+        font-size: 0.82rem !important;
+        font-weight: 500;
+        color: var(--text-secondary) !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -252,32 +269,32 @@ st.markdown("""
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 CHART_COLORS = {
-    "gold": "#E8B931",
-    "cyan": "#38BDF8",
-    "emerald": "#34D399",
-    "rose": "#F87171",
-    "purple": "#C084FC",
-    "orange": "#FB923C",
-    "slate": "#64748B",
+    "gold": "#D4A76A",
+    "cyan": "#6BA3BE",
+    "emerald": "#7AB87A",
+    "rose": "#C75B5B",
+    "purple": "#B08FC7",
+    "orange": "#D4956A",
+    "slate": "#636366",
     "btc": "#F7931A",
 }
 
-EXPIRY_COLORS = ["#38BDF8", "#34D399", "#E8B931", "#C084FC", "#FB923C", "#F87171"]
+EXPIRY_COLORS = ["#6BA3BE", "#7AB87A", "#D4A76A", "#B08FC7", "#D4956A", "#C75B5B"]
 
 
 def chart_layout(**overrides) -> dict:
-    """Base Plotly layout for all charts."""
+    """Base Plotly layout — warm dark, Apple-esque."""
     base = dict(
-        paper_bgcolor="#0B0D11",
-        plot_bgcolor="#111318",
-        font=dict(family="IBM Plex Mono, monospace", color="#94A3B8", size=11),
+        paper_bgcolor="#0C0B09",
+        plot_bgcolor="#141310",
+        font=dict(family="Azeret Mono, monospace", color="#A09A90", size=11),
         margin=dict(l=12, r=12, t=44, b=12),
         xaxis=dict(
-            gridcolor="#1E2330", zerolinecolor="#1E2330",
+            gridcolor="#252320", zerolinecolor="#252320",
             tickfont=dict(size=10),
         ),
         yaxis=dict(
-            gridcolor="#1E2330", zerolinecolor="#1E2330",
+            gridcolor="#252320", zerolinecolor="#252320",
             tickfont=dict(size=10),
         ),
         legend=dict(
@@ -285,8 +302,8 @@ def chart_layout(**overrides) -> dict:
             font=dict(size=10),
         ),
         hoverlabel=dict(
-            bgcolor="#181C24", bordercolor="#1E2330",
-            font=dict(family="IBM Plex Mono", size=11),
+            bgcolor="#1A1916", bordercolor="#252320",
+            font=dict(family="Azeret Mono", size=11),
         ),
     )
     base.update(overrides)
@@ -591,10 +608,10 @@ def render_vol_heatmap(vol_surface, spot):
         x=tenor_labels,
         y=[f"${s/1000:.0f}k" for s in strikes],
         colorscale=[
-            [0, "#0B0D11"], [0.25, "#1E3A5F"], [0.5, "#38BDF8"],
-            [0.75, "#E8B931"], [1, "#F87171"]
+            [0, "#0C0B09"], [0.25, "#2A3540"], [0.5, "#6BA3BE"],
+            [0.75, "#D4A76A"], [1, "#C75B5B"]
         ],
-        colorbar=dict(title="IV %", titlefont=dict(size=10)),
+        colorbar=dict(title=dict(text="IV %", font=dict(size=10))),
         hovertemplate="Strike: %{y}<br>Expiry: %{x}<br>IV: %{z:.1f}%<extra></extra>",
     ))
 
@@ -996,13 +1013,13 @@ def render_trading_desk(data):
 
     def _style_sig(val):
         if val == "BUY YES":
-            return "background-color: rgba(52,211,153,0.12); color: #34D399; font-weight: 600"
+            return "background-color: rgba(122,184,122,0.1); color: #7AB87A; font-weight: 600"
         elif val == "BUY NO":
-            return "background-color: rgba(248,113,113,0.12); color: #F87171; font-weight: 600"
-        return "color: #64748B"
+            return "background-color: rgba(199,91,91,0.1); color: #C75B5B; font-weight: 600"
+        return "color: #636366"
 
     def _style_conf(val):
-        return {"HIGH": "color:#34D399", "MEDIUM": "color:#E8B931", "LOW": "color:#F87171"}.get(val, "")
+        return {"HIGH": "color:#7AB87A", "MEDIUM": "color:#C9A87C", "LOW": "color:#C75B5B"}.get(val, "")
 
     styled = df.style.map(_style_sig, subset=["Signal"]).map(_style_conf, subset=["Conf"])
     st.dataframe(styled, use_container_width=True, hide_index=True,
@@ -1431,8 +1448,8 @@ def render_header(data):
 def main():
     # title
     st.markdown(
-        '<h1 style="font-family: Fraunces, serif; font-weight: 700; '
-        'letter-spacing: -0.03em; margin-bottom: 0;">'
+        '<h1 style="font-family: \'Playfair Display\', serif; font-weight: 700; '
+        'letter-spacing: -0.02em; margin-bottom: 0; font-size: 2rem;">'
         '<span class="gold">₿</span> BTC Vol Desk</h1>',
         unsafe_allow_html=True,
     )

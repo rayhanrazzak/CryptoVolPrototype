@@ -1,28 +1,30 @@
 # BTC Volatility Market Analyzer
 
-A live prototype that compares Kalshi BTC prediction market probabilities against a log-normal fair value model, using implied volatility from Deribit and realized volatility from recent BTC price action. The goal is to identify and explain potential mispricings in short-dated BTC event markets.
+A live prototype that compares Kalshi BTC prediction market probabilities against a volatility-based fair value model. Uses strike-matched implied volatility from Deribit's options chain and realized volatility from recent BTC price action to identify potential mispricings in short-dated BTC event markets.
 
 ## Key Features
 
-- **Live Kalshi market discovery** -- dynamically finds KXBTCD (threshold) and KXBTC (range) BTC markets, ranked by expiry and interpretability
-- **Deribit DVOL implied volatility** -- pulls the BTC Volatility Index as a forward-looking vol anchor
-- **CoinGecko realized volatility** -- computes 24-hour realized vol from recent BTC spot returns
-- **Fair value model** -- log-normal probability estimation for threshold-crossing events
+- **Live Kalshi market discovery** -- dynamically finds KXBTCD (threshold) and KXBTC (range) BTC markets, ranked by expiry, liquidity, and interpretability
+- **Strike-matched implied volatility** -- pulls ~900 BTC options from Deribit and matches IV by strike and tenor, capturing skew and term structure
+- **Realized volatility** -- computes 24-hour annualized vol from recent BTC spot returns via CoinGecko
+- **IV-RV regime blending** -- blends implied and realized vol based on their ratio as a vol regime signal
+- **Fat-tail adjustment** -- Student-t probability (df=5) instead of normal CDF for more realistic BTC tail risk
+- **Liquidity-aware pricing** -- flags one-sided quotes and applies confidence penalties for illiquid markets
 - **Mock paper-trade signals** -- BUY YES / BUY NO / NO TRADE based on edge, spread cost, and confidence
-- **Deterministic explanation engine** -- concise natural-language commentary on each market opportunity, no external API dependencies
+- **Deterministic explanation engine** -- concise natural-language commentary surfacing IV source, vol regime, and tail adjustments
 
 ## Architecture
 
 ```
 app.py                  # Streamlit dashboard (3 tabs: Dashboard, Market Details, Methodology)
-config.py               # Constants, thresholds, environment variable loading
+config.py               # Model parameters, blending weights, tail distribution settings
 data/
-  kalshi_client.py      # Kalshi market discovery and pricing (read-only, public endpoints)
-  deribit_client.py     # Deribit DVOL implied volatility
+  kalshi_client.py      # Kalshi market discovery, pricing, and liquidity classification
+  deribit_client.py     # Vol surface builder from full options chain + DVOL index
   spot_client.py        # BTC spot price and recent price history via CoinGecko
 models/
-  vol_model.py          # Log-normal fair value probability estimation
-  signal_engine.py      # Edge-based signal generation with confidence adjustments
+  vol_model.py          # Strike-matched IV lookup, Student-t probability, IV-RV blending
+  signal_engine.py      # Edge-based signal generation with liquidity-aware confidence
   explainer.py          # Deterministic natural-language explanation engine
 utils/
 ```
@@ -41,7 +43,7 @@ Copy the example environment file and fill in values if needed:
 cp .env.example .env
 ```
 
-Most functionality works with public endpoints and requires no API keys. Kalshi credentials are optional and only needed if the public endpoints require authentication in the future.
+All functionality works with public endpoints and requires no API keys.
 
 ## Environment Variables
 
@@ -49,7 +51,6 @@ Most functionality works with public endpoints and requires no API keys. Kalshi 
 |---|---|---|
 | `KALSHI_API_KEY` | No | Kalshi API key (public endpoints used by default) |
 | `KALSHI_PRIVATE_KEY_PATH` | No | Path to Kalshi private key file |
-| `COINGECKO_API_KEY` | No | CoinGecko API key (free tier works without one) |
 
 ## How to Run
 
@@ -61,41 +62,49 @@ The dashboard opens at `http://localhost:8501`.
 
 ## Methodology
 
+### Volatility Surface
+
+The model builds a full implied volatility surface from Deribit's BTC options chain (~900 active options across ~11 expiries). For each Kalshi contract, it looks up the IV at the closest strike and tenor, using **total variance interpolation** (sigma^2 * t) between expiries to avoid calendar arbitrage. This captures both **skew** (OTM puts trade at higher IV than ATM due to crash risk) and **term structure** (short-dated vol differs from 30-day vol).
+
+Falls back to the DVOL index (30-day IV) when no close match exists.
+
 ### Fair Value Model
 
-The model estimates the probability that BTC spot will be above (or below) a given threshold at expiry using a log-normal assumption:
+For threshold markets ("BTC above $K"), the model estimates:
 
-- **P(S_T > K) = Phi(-d2)** where d2 = (ln(S/K)) / (sigma * sqrt(T))
+- **P(S_T > K)** using a Student-t CDF (df=5) applied to the standard d2 statistic
 - Zero drift assumption (reasonable for short horizons)
-- Volatility scaled by sqrt(T) from annualized input
-- DVOL used as the primary implied vol anchor; realized vol computed separately for comparison
+- The t-distribution adds probability mass to the tails vs. normal, which matters for BTC
 
-### Volatility
+For range markets, the probability of landing in [A, B) is computed as the difference of two threshold probabilities.
 
-- **Implied vol**: Deribit DVOL, a 30-day forward-looking BTC options volatility index
-- **Realized vol**: Annualized standard deviation of log returns from the most recent 24 hours of BTC spot prices
+### IV-RV Blending
 
-Both are displayed separately in the UI. The model computes fair values under each scenario when both are available.
+When both IV and RV are available, they are blended based on their ratio:
+- **IV/RV > 1.3** (expansion): weight IV 70% -- options market expects higher vol
+- **IV/RV < 0.7** (compression): weight IV 30% -- recent moves exceed priced vol
+- **Otherwise** (neutral): weight IV 55%
 
 ### Signal Generation
 
-- Edge = model probability - market probability (adjusted for direction)
-- Minimum edge threshold required to generate a signal
-- Spread cost penalty applied when bid-ask data is available
-- Confidence downgraded when data quality is weak (missing vol, low liquidity, wide spreads)
+- Edge = model probability - market probability
+- Adjusted for confidence penalties (liquidity, spread, data quality) and spread cost
+- Minimum 5% adjusted edge to trigger BUY YES or BUY NO
 - Signals are mock/paper-trade only
 
 ## Assumptions and Limitations
 
-- **Log-normal tails**: real BTC returns have fatter tails than log-normal, meaning the model underestimates extreme move probabilities
-- **Constant volatility**: vol is treated as fixed over the contract horizon, which breaks down during volatile periods
-- **Horizon mismatch**: DVOL is a 30-day implied vol measure applied to contracts expiring in hours or days; this is a known approximation
-- **No microstructure modeling**: order flow, slippage, and market impact are not modeled
-- **Prototype signals only**: this is not a production trading system; signals are illustrative and should not be used for real trading decisions
+- **Student-t tails** improve on log-normal but df=5 is still an approximation of BTC's true tail behavior
+- **Constant vol per horizon**: the vol surface helps, but within-horizon vol clustering is not modeled
+- **Zero drift**: ignores momentum, reasonable for short horizons
+- **No jump diffusion**: macro events, ETF flows, and regulatory news can cause discrete gaps
+- **No microstructure**: order flow, slippage, and market impact are not modeled
+- **Prototype only**: signals are illustrative and not trading advice
 
 ## Demo Flow
 
 1. Open the dashboard (`streamlit run app.py`)
-2. The **Dashboard** tab shows ranked BTC markets with market-implied probability, model-implied probability, edge, signal, and a short explanation
-3. Click into **Market Details** for deeper analysis of a specific contract: vol inputs, model breakdown, threshold interpretation, and assumptions
-4. Read the **Methodology** tab for a full explanation of the approach, data sources, and caveats
+2. The **Dashboard** tab shows ranked BTC markets with market probability, model probability, edge, signal, IV source, and confidence
+3. Use sidebar filters to focus on threshold vs range markets, two-sided liquidity, and minimum volume
+4. Click into **Market Details** for a specific contract: vol surface lookup, regime analysis, tail adjustment, probability breakdown
+5. Read the **Methodology** tab for the full approach, including vol surface construction, t-distribution rationale, and IV-RV blending logic

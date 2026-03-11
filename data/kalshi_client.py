@@ -179,6 +179,7 @@ def extract_market_params(market: dict) -> dict:
             threshold = (range_low + range_high) / 2
 
     # pricing — Kalshi uses cents (0-100)
+    # liquidity-aware: only trust the midpoint when both sides are quoted
     yes_bid = market.get("yes_bid")
     yes_ask = market.get("yes_ask")
     last_price = market.get("last_price")
@@ -186,12 +187,24 @@ def extract_market_params(market: dict) -> dict:
     if yes_bid is not None and yes_ask is not None and yes_bid > 0 and yes_ask > 0:
         market_prob = (yes_bid + yes_ask) / 200.0
         spread = (yes_ask - yes_bid) / 100.0
+        liquidity = "two_sided"
+    elif yes_bid is not None and yes_ask is not None and yes_bid == 0 and yes_ask > 0:
+        # zero-bid market: the ask is an upper bound, not a fair mid
+        # use last_price if available, otherwise the ask is all we have
+        if last_price is not None and last_price > 0:
+            market_prob = last_price / 100.0
+        else:
+            market_prob = yes_ask / 100.0
+        spread = yes_ask / 100.0  # effective spread is the full ask
+        liquidity = "one_sided"
     elif last_price is not None and last_price > 0:
         market_prob = last_price / 100.0
         spread = None
+        liquidity = "stale"
     else:
         market_prob = None
         spread = None
+        liquidity = "no_quotes"
 
     return {
         "ticker": ticker,
@@ -206,6 +219,7 @@ def extract_market_params(market: dict) -> dict:
         "range_high": range_high,
         "market_prob": market_prob,
         "spread": spread,
+        "liquidity": liquidity,
         "yes_bid": yes_bid,
         "yes_ask": yes_ask,
         "last_price": last_price,

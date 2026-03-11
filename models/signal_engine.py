@@ -23,6 +23,7 @@ def assess_confidence(
     rv_available: bool = True,
     hours_to_expiry: float = None,
     iv_rv_divergence: float = None,
+    liquidity: str = None,
 ) -> dict:
     """
     Assess confidence in the signal. Returns a confidence score (0-1)
@@ -30,6 +31,17 @@ def assess_confidence(
     """
     confidence = 1.0
     concerns = []
+
+    # liquidity quality — the most important data quality signal
+    if liquidity == "one_sided":
+        confidence -= config.LIQUIDITY_PENALTY_ONE_SIDED
+        concerns.append("one-sided quotes (no bid)")
+    elif liquidity == "no_quotes":
+        confidence -= config.LIQUIDITY_PENALTY_NO_QUOTES
+        concerns.append("no live quotes")
+    elif liquidity == "stale":
+        confidence -= 0.10
+        concerns.append("stale pricing (last trade only)")
 
     # spread penalty
     if spread is not None and spread > 0.10:
@@ -61,7 +73,7 @@ def assess_confidence(
         confidence -= 0.05
         concerns.append("short expiry")
 
-    # IV/RV disagreement suggests uncertainty
+    # IV/RV disagreement suggests uncertainty about vol regime
     if iv_rv_divergence is not None and abs(iv_rv_divergence) > 15:
         confidence -= 0.10
         concerns.append(f"IV-RV divergence ({iv_rv_divergence:+.1f}%)")

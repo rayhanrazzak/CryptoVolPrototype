@@ -23,6 +23,23 @@ MIN_EDGE_THRESHOLD = 0.05       # 5% minimum edge for signal
 CONFIDENCE_PENALTY = 0.02       # penalize edge if data quality is weak
 SPREAD_PENALTY_FACTOR = 0.5     # fraction of spread to deduct from edge
 
+# Fat-tail adjustment: Student-t degrees of freedom
+# df=5 is a standard pragmatic choice for crypto (fatter than normal, not extreme)
+# higher df → closer to normal; lower df → fatter tails
+T_DIST_DF = 5
+
+# IV-RV blending regime thresholds
+# when IV/RV ratio exceeds these bounds, tilt the blend toward the dominant signal
+BLEND_RATIO_HIGH = 1.3    # IV/RV > 1.3 → vol expansion regime, favor IV
+BLEND_RATIO_LOW = 0.7     # IV/RV < 0.7 → vol compression regime, favor RV
+BLEND_IV_WEIGHT_EXPANSION = 0.70   # weight on IV during vol expansion
+BLEND_IV_WEIGHT_COMPRESSION = 0.30 # weight on IV during vol compression
+BLEND_IV_WEIGHT_NEUTRAL = 0.55     # slight IV tilt when aligned (forward-looking)
+
+# Liquidity filtering
+LIQUIDITY_PENALTY_ONE_SIDED = 0.20  # confidence penalty for zero-bid markets
+LIQUIDITY_PENALTY_NO_QUOTES = 0.35  # confidence penalty for no-quote markets
+
 # Realized vol
 REALIZED_VOL_WINDOW_HOURS = 24  # lookback for realized vol
 REALIZED_VOL_SAMPLE_MINUTES = 5 # sampling frequency for returns

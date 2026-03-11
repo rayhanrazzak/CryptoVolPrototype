@@ -1,25 +1,54 @@
 """
 Deribit public API client for BTC implied volatility.
-Uses the DVOL index (Deribit's 30-day implied vol index) as the primary
-IV anchor, with option-level IV as a fallback / supplementary signal.
+
+Provides:
+- DVOL index (30-day implied vol) as a baseline anchor
+- Full vol surface from the BTC options chain for strike/tenor-matched IV
+- Near-ATM option IV as a supplementary signal
 """
 
+import time
 import requests
 from datetime import datetime, timezone
-
+from collections import defaultdict
 
 DERIBIT_BASE = "https://www.deribit.com/api/v2"
+
+
+def _parse_instrument_name(name: str) -> dict | None:
+    """
+    Parse a Deribit instrument name like 'BTC-28MAR26-90000-C'.
+    Returns expiry datetime, strike, and option type.
+    """
+    parts = name.split("-")
+    if len(parts) != 4 or parts[0] != "BTC":
+        return None
+    try:
+        # Deribit options settle at 08:00 UTC on expiry date
+        expiry = datetime.strptime(parts[1], "%d%b%y").replace(
+            tzinfo=timezone.utc, hour=8
+        )
+        strike = float(parts[2])
+        opt_type = parts[3]  # C or P
+        if opt_type not in ("C", "P"):
+            return None
+    except (ValueError, TypeError):
+        return None
+
+    return {
+        "expiry": expiry,
+        "expiry_label": parts[1],
+        "strike": strike,
+        "type": opt_type,
+    }
 
 
 def get_btc_dvol() -> dict:
     """
     Fetch the BTC DVOL index — Deribit's 30-day implied volatility index.
-    This is the cleanest single-number IV anchor available.
     Returns annualized vol as a percentage (e.g., 55.0 means 55% ann. vol).
     """
-    import time
     now_ms = int(time.time() * 1000)
-    # fetch the last few hours of DVOL data and take the most recent value
     url = f"{DERIBIT_BASE}/public/get_volatility_index_data"
     params = {
         "currency": "BTC",
@@ -33,18 +62,14 @@ def get_btc_dvol() -> dict:
     if not data:
         return {"dvol": None, "error": "no DVOL data returned"}
 
-    # each row: [timestamp, open, high, low, close]
     latest = data[-1]
-    return {
-        "dvol": latest[4],  # close value
-    }
+    return {"dvol": latest[4]}  # close value
 
 
 def get_btc_options_summary() -> list[dict]:
     """
     Fetch summary data for all active BTC options.
-    Each entry includes mark_iv, underlying_price, expiration, etc.
-    Useful for finding near-term option IV if we want more granularity.
+    Each entry includes mark_iv, underlying_price, etc.
     """
     url = f"{DERIBIT_BASE}/public/get_book_summary_by_currency"
     params = {"currency": "BTC", "kind": "option"}
@@ -53,79 +78,202 @@ def get_btc_options_summary() -> list[dict]:
     return resp.json()["result"]
 
 
-def get_nearest_expiry_atm_iv() -> dict:
+def build_vol_surface() -> dict:
     """
-    Find the nearest-expiry ATM option and return its implied vol.
-    More targeted than DVOL but noisier for very short expirations.
+    Build a structured volatility surface from the full Deribit option chain.
+
+    Returns a dict with:
+    - surface: {expiry_label: [{"strike", "iv", "instrument", "type"}, ...]}
+    - expiries: sorted list of (label, expiry_dt, hours_to_expiry)
+    - underlying: current underlying price from the options chain
+    - raw_count: total options processed
     """
     summaries = get_btc_options_summary()
-    if not summaries:
-        return {"iv": None, "instrument": None, "expiry": None}
-
     now = datetime.now(timezone.utc)
 
-    # filter to options with reasonable IV and near-the-money
-    candidates = []
+    surface = defaultdict(list)
+    underlying = None
+
     for s in summaries:
         iv = s.get("mark_iv")
-        underlying = s.get("underlying_price", 0)
-        mid = s.get("mid_price")
-        expiry_ts = s.get("expiration_timestamp", 0)
-        instrument = s.get("instrument_name", "")
-
-        if iv is None or iv <= 0 or underlying <= 0:
-            continue
-        if expiry_ts <= now.timestamp() * 1000:
+        if not iv or iv <= 0:
             continue
 
-        # parse strike from instrument name (e.g., BTC-28MAR25-90000-C)
-        parts = instrument.split("-")
-        if len(parts) < 3:
-            continue
-        try:
-            strike = float(parts[2])
-        except ValueError:
+        parsed = _parse_instrument_name(s.get("instrument_name", ""))
+        if not parsed:
             continue
 
-        # "near ATM" = within 10% of underlying
-        moneyness = abs(strike - underlying) / underlying
-        if moneyness > 0.10:
+        if parsed["expiry"] <= now:
             continue
 
-        time_to_expiry = (expiry_ts / 1000) - now.timestamp()
-        candidates.append({
-            "instrument": instrument,
+        if underlying is None:
+            underlying = s.get("underlying_price", 0)
+
+        hours = (parsed["expiry"] - now).total_seconds() / 3600
+
+        surface[parsed["expiry_label"]].append({
+            "strike": parsed["strike"],
             "iv": iv,
-            "strike": strike,
-            "underlying": underlying,
-            "moneyness": moneyness,
-            "time_to_expiry_hours": time_to_expiry / 3600,
-            "expiry_ts": expiry_ts,
+            "instrument": s["instrument_name"],
+            "type": parsed["type"],
+            "expiry": parsed["expiry"],
+            "hours_to_expiry": hours,
         })
 
-    if not candidates:
-        return {"iv": None, "instrument": None, "expiry": None}
+    # sort strikes within each expiry
+    for label in surface:
+        surface[label].sort(key=lambda x: x["strike"])
 
-    # sort by expiry (nearest first), then by moneyness (closest to ATM)
-    candidates.sort(key=lambda c: (c["expiry_ts"], c["moneyness"]))
-    best = candidates[0]
+    # build sorted expiry list
+    expiries = []
+    for label, opts in surface.items():
+        if opts:
+            expiries.append({
+                "label": label,
+                "expiry": opts[0]["expiry"],
+                "hours": opts[0]["hours_to_expiry"],
+                "n_strikes": len(opts),
+            })
+    expiries.sort(key=lambda x: x["hours"])
+
+    return {
+        "surface": dict(surface),
+        "expiries": expiries,
+        "underlying": underlying or 0,
+        "raw_count": len(summaries),
+    }
+
+
+def lookup_strike_tenor_iv(
+    vol_surface: dict,
+    target_strike: float,
+    target_hours: float,
+) -> dict:
+    """
+    Look up implied vol for a specific strike and tenor from the vol surface.
+
+    Uses the nearest Deribit expiry and interpolates between the two
+    closest strikes. If two expiries bracket the target, interpolates
+    in total-variance space (sigma^2 * t) to avoid calendar arbitrage.
+
+    Returns the matched IV, source instruments, and method description.
+    """
+    if not vol_surface or not vol_surface.get("expiries"):
+        return {"iv": None, "method": "no_surface"}
+
+    expiries = vol_surface["expiries"]
+    surface = vol_surface["surface"]
+
+    # find bracketing expiries
+    before = None
+    after = None
+    for exp in expiries:
+        if exp["hours"] <= target_hours:
+            before = exp
+        elif after is None:
+            after = exp
+
+    # determine which expiry/expiries to use
+    if before and after:
+        # interpolate between two expiries in total-variance space
+        iv_before = _find_strike_iv(surface[before["label"]], target_strike)
+        iv_after = _find_strike_iv(surface[after["label"]], target_strike)
+
+        if iv_before and iv_after:
+            # total variance interpolation: sigma^2 * t
+            t1 = before["hours"] / 8760
+            t2 = after["hours"] / 8760
+            t_target = target_hours / 8760
+            var1 = (iv_before["iv"] / 100) ** 2 * t1
+            var2 = (iv_after["iv"] / 100) ** 2 * t2
+
+            # linear interpolation in total variance
+            w = (t_target - t1) / (t2 - t1) if t2 != t1 else 0.5
+            var_interp = var1 + w * (var2 - var1)
+            iv_interp = (var_interp / t_target) ** 0.5 * 100 if t_target > 0 else iv_before["iv"]
+
+            return {
+                "iv": round(iv_interp, 2),
+                "method": "tenor_strike_interpolated",
+                "near_expiry": before["label"],
+                "far_expiry": after["label"],
+                "near_iv": iv_before["iv"],
+                "far_iv": iv_after["iv"],
+                "instruments": [iv_before.get("instrument"), iv_after.get("instrument")],
+            }
+
+        # fall back to whichever side has data
+        best = iv_before or iv_after
+        exp_used = before if iv_before else after
+    elif before:
+        best = _find_strike_iv(surface[before["label"]], target_strike)
+        exp_used = before
+    elif after:
+        best = _find_strike_iv(surface[after["label"]], target_strike)
+        exp_used = after
+    else:
+        return {"iv": None, "method": "no_matching_expiry"}
+
+    if not best:
+        return {"iv": None, "method": "no_matching_strike"}
 
     return {
         "iv": best["iv"],
-        "instrument": best["instrument"],
-        "expiry_hours": best["time_to_expiry_hours"],
-        "strike": best["strike"],
-        "underlying": best["underlying"],
+        "method": "nearest_strike_tenor",
+        "expiry_used": exp_used["label"],
+        "strike_used": best["strike"],
+        "instrument": best.get("instrument"),
+        "interpolated_strike": best.get("interpolated", False),
     }
+
+
+def _find_strike_iv(options: list[dict], target_strike: float) -> dict | None:
+    """
+    Find or interpolate the IV at a target strike from a sorted list of options.
+    Linear interpolation between the two bracketing strikes.
+    """
+    if not options:
+        return None
+
+    strikes = [o["strike"] for o in options]
+
+    # exact match
+    for o in options:
+        if o["strike"] == target_strike:
+            return o
+
+    # find bracketing strikes
+    below = None
+    above = None
+    for o in options:
+        if o["strike"] <= target_strike:
+            below = o
+        elif above is None:
+            above = o
+
+    if below and above:
+        # linear interpolation
+        w = (target_strike - below["strike"]) / (above["strike"] - below["strike"])
+        iv_interp = below["iv"] + w * (above["iv"] - below["iv"])
+        return {
+            "strike": target_strike,
+            "iv": round(iv_interp, 2),
+            "instrument": f"{below['instrument']}↔{above['instrument']}",
+            "interpolated": True,
+        }
+
+    # only one side available — use nearest
+    nearest = below or above
+    return nearest
 
 
 def get_iv_summary() -> dict:
     """
-    Combined IV summary: DVOL index + nearest ATM option IV.
-    Returns both for display and model use.
+    Combined IV summary: DVOL index + full vol surface.
+    The vol surface enables strike/tenor-matched IV lookup.
     """
     dvol_data = {}
-    atm_data = {}
+    vol_surface = {}
 
     try:
         dvol_data = get_btc_dvol()
@@ -133,13 +281,12 @@ def get_iv_summary() -> dict:
         dvol_data = {"dvol": None, "error": str(e)}
 
     try:
-        atm_data = get_nearest_expiry_atm_iv()
+        vol_surface = build_vol_surface()
     except Exception as e:
-        atm_data = {"iv": None, "error": str(e)}
+        vol_surface = {"surface": {}, "expiries": [], "error": str(e)}
 
     return {
         "dvol": dvol_data.get("dvol"),
         "dvol_raw": dvol_data,
-        "nearest_atm_iv": atm_data.get("iv"),
-        "nearest_atm_detail": atm_data,
+        "vol_surface": vol_surface,
     }

@@ -166,7 +166,13 @@ def fetch_all_data():
     }
 
 
-def analyze_market(market_entry: dict, spot_price: float, iv: float, rv: float) -> dict:
+def analyze_market(
+    market_entry: dict,
+    spot_price: float,
+    iv: float,
+    rv: float,
+    vol_surface: dict = None,
+) -> dict:
     """Run the full analysis pipeline for a single market."""
     market = market_entry["market"]
     params = market_entry.get("params") or kalshi_client.extract_market_params(market)
@@ -188,20 +194,25 @@ def analyze_market(market_entry: dict, spot_price: float, iv: float, rv: float) 
             market_type=market_type,
             range_low=params.get("range_low"),
             range_high=params.get("range_high"),
+            vol_surface=vol_surface,
         )
     else:
         fv = {"model_prob": None, "iv_fair_prob": None, "rv_fair_prob": None}
 
     model_prob = fv.get("model_prob")
 
-    iv_rv_div = (iv - rv) if (iv and rv) else None
+    # use the best available IV for divergence calculation
+    best_iv = fv.get("strike_matched_iv") or fv.get("dvol") or iv
+    iv_rv_div = (best_iv - rv) if (best_iv and rv) else None
+
     conf = signal_engine.assess_confidence(
         spread=params["spread"],
         volume=params["volume"],
-        iv_available=iv is not None,
+        iv_available=best_iv is not None,
         rv_available=rv is not None,
         hours_to_expiry=hours,
         iv_rv_divergence=iv_rv_div,
+        liquidity=params.get("liquidity"),
     )
 
     sig = signal_engine.generate_signal(
@@ -226,6 +237,11 @@ def analyze_market(market_entry: dict, spot_price: float, iv: float, rv: float) 
         direction=direction,
         spread=params["spread"],
         raw_edge=sig["raw_edge"],
+        iv_source=fv.get("iv_source"),
+        vol_regime=fv.get("vol_regime"),
+        tail_adjustment=fv.get("iv_tail_adjustment"),
+        strike_matched_iv=fv.get("strike_matched_iv"),
+        liquidity=params.get("liquidity"),
     )
 
     return {
@@ -285,6 +301,7 @@ def render_dashboard(data: dict):
     spot_price = data["spot"].get("price")
     iv = data["iv_data"].get("dvol")
     rv = data["rv_data"].get("realized_vol")
+    vol_surface = data["iv_data"].get("vol_surface")
     ranked = data["ranked_markets"]
 
     if not ranked:
@@ -302,6 +319,7 @@ def render_dashboard(data: dict):
     with st.sidebar:
         st.subheader("Filters")
         show_type = st.radio("Market Type", ["All", "Threshold", "Range"], horizontal=True)
+        show_liquidity = st.radio("Liquidity", ["All", "Two-Sided Only"], horizontal=True)
         min_volume = st.slider("Min Volume", 0, 500, 0, step=10)
         n_display = st.slider("Markets to Show", 5, 30, 15)
 
@@ -311,6 +329,8 @@ def render_dashboard(data: dict):
         filtered = [r for r in filtered if r["params"].get("market_type") == "threshold"]
     elif show_type == "Range":
         filtered = [r for r in filtered if r["params"].get("market_type") == "range"]
+    if show_liquidity == "Two-Sided Only":
+        filtered = [r for r in filtered if r["params"].get("liquidity") == "two_sided"]
     if min_volume > 0:
         filtered = [r for r in filtered if (r["market"].get("volume") or 0) >= min_volume]
 
@@ -318,7 +338,7 @@ def render_dashboard(data: dict):
     analyses = []
     for entry in filtered[:n_display]:
         try:
-            analyses.append(analyze_market(entry, spot_price, iv, rv))
+            analyses.append(analyze_market(entry, spot_price, iv, rv, vol_surface))
         except Exception:
             continue
 
@@ -337,6 +357,9 @@ def render_dashboard(data: dict):
         conf = a["confidence"]
         label = format_market_label(p)
 
+        iv_src = fv.get("iv_source", "—")
+        iv_src_short = {"strike_matched": "Matched", "dvol_fallback": "DVOL", None: "—"}.get(iv_src, iv_src)
+
         table_data.append({
             "Contract": label,
             "Type": (p.get("market_type") or "?").title(),
@@ -345,6 +368,7 @@ def render_dashboard(data: dict):
             "Model Prob": f"{fv.get('model_prob'):.0%}" if fv.get("model_prob") is not None else "—",
             "Edge": f"{sig['raw_edge']:+.1%}" if sig["raw_edge"] is not None else "—",
             "Signal": sig["signal"],
+            "IV Src": iv_src_short,
             "Confidence": conf["confidence_label"],
             "Vol": (p.get("volume") or 0),
         })
@@ -525,6 +549,7 @@ def render_market_details(data: dict):
     spot_price = data["spot"].get("price")
     iv = data["iv_data"].get("dvol")
     rv = data["rv_data"].get("realized_vol")
+    vol_surface = data["iv_data"].get("vol_surface")
 
     # build meaningful selector labels
     selector_labels = []
@@ -533,7 +558,8 @@ def render_market_details(data: dict):
         label = format_market_label(p)
         expiry = format_expiry(r["hours_to_expiry"])
         prob = f" | Mkt: {p['market_prob']:.0%}" if p.get("market_prob") is not None else ""
-        selector_labels.append(f"{label} ({expiry}{prob})")
+        liq = " ⚠" if p.get("liquidity") != "two_sided" else ""
+        selector_labels.append(f"{label} ({expiry}{prob}){liq}")
 
     selected_idx = st.selectbox(
         "Select a market to analyze:",
@@ -545,7 +571,7 @@ def render_market_details(data: dict):
     market = entry["market"]
 
     try:
-        analysis = analyze_market(entry, spot_price, iv, rv)
+        analysis = analyze_market(entry, spot_price, iv, rv, vol_surface)
     except Exception as e:
         st.error(f"Analysis failed: {e}")
         return
@@ -562,9 +588,11 @@ def render_market_details(data: dict):
         st.caption(sig.get("reason", ""))
     with info_col:
         st.markdown(f"**{params.get('event_title', params['title'])}**")
+        liq_badge = " ⚠ one-sided" if params.get("liquidity") == "one_sided" else ""
         st.markdown(f"Contract: **{format_market_label(params)}** | "
                     f"Ticker: `{params['ticker']}` | "
-                    f"Expires in **{format_expiry(analysis['hours_to_expiry'])}**")
+                    f"Expires in **{format_expiry(analysis['hours_to_expiry'])}**"
+                    f"{liq_badge}")
 
     st.divider()
 
@@ -589,6 +617,7 @@ def render_market_details(data: dict):
             "Type": (params.get("market_type") or "unknown").title(),
             "Direction": params.get("direction", "N/A"),
             "Threshold": f"${params['threshold']:,.0f}" if params["threshold"] else "N/A",
+            "Liquidity": params.get("liquidity", "unknown"),
         }
         if params.get("range_low"):
             meta["Range"] = f"${params['range_low']:,.0f} – ${params['range_high']:,.0f}"
@@ -605,21 +634,50 @@ def render_market_details(data: dict):
 
         st.markdown("---")
 
-        # vol inputs
+        # vol inputs — show the full picture
         st.markdown("#### Volatility")
+        iv_source = fv.get("iv_source", "N/A")
+        matched_iv = fv.get("strike_matched_iv")
+        if matched_iv:
+            st.metric("Strike-Matched IV", f"{matched_iv:.1f}%")
+            st.caption(f"Source: {fv.get('iv_detail', {}).get('method', 'N/A')}")
+
         v1, v2 = st.columns(2)
         with v1:
-            st.metric("DVOL (IV)", f"{iv:.1f}%" if iv else "N/A")
+            st.metric("DVOL (30d)", f"{iv:.1f}%" if iv else "N/A")
         with v2:
             st.metric("Realized Vol", f"{rv:.1f}%" if rv else "N/A")
 
+        # vol regime
+        regime = fv.get("vol_regime")
+        if regime:
+            blend_info = fv.get("blend_weights", {})
+            regime_label = {"vol_expansion": "Expansion", "vol_compression": "Compression", "neutral": "Neutral"}.get(regime, regime)
+            st.metric("Vol Regime", regime_label)
+            if blend_info:
+                st.caption(f"Blend: {blend_info.get('iv', 0):.0%} IV / {blend_info.get('rv', 0):.0%} RV")
+
+        st.markdown("---")
+
+        # probability breakdown
+        st.markdown("#### Probability Breakdown")
         iv_prob = fv.get("iv_fair_prob")
         rv_prob = fv.get("rv_fair_prob")
-        p1, p2 = st.columns(2)
-        with p1:
-            st.metric("IV Fair Prob", f"{iv_prob:.1%}" if iv_prob is not None else "N/A")
-        with p2:
-            st.metric("RV Fair Prob", f"{rv_prob:.1%}" if rv_prob is not None else "N/A")
+        blended_prob = fv.get("blended_fair_prob")
+        tail_adj = fv.get("iv_tail_adjustment")
+
+        prob_rows = []
+        if iv_prob is not None:
+            prob_rows.append(("IV-Based", f"{iv_prob:.1%}"))
+        if rv_prob is not None:
+            prob_rows.append(("RV-Based", f"{rv_prob:.1%}"))
+        if blended_prob is not None:
+            prob_rows.append(("**Blended (primary)**", f"**{blended_prob:.1%}**"))
+        if tail_adj is not None and abs(tail_adj) > 0.001:
+            prob_rows.append(("Tail Adjustment", f"{tail_adj:+.1%}"))
+
+        for label, val in prob_rows:
+            st.markdown(f"{label}: {val}")
 
         st.markdown("---")
 
@@ -720,30 +778,49 @@ Markets are discovered dynamically from Kalshi's API using the **KXBTCD** (thres
 and **KXBTC** (range) series. Markets are ranked by a scoring function that prefers:
 - Shorter time to expiry
 - Threshold-style contracts (easier to model and explain)
+- Two-sided quotes (bid and ask both present)
 - Active markets with volume and pricing
 - "Interesting" probability levels (not deep ITM/OTM at 99¢/1¢)
+
+Markets with only one-sided quotes (zero bid) are flagged with reduced confidence,
+since the midpoint of 0/ask is not a meaningful probability estimate.
 
 ### Data Sources
 
 | Source | Data | Auth |
 |--------|------|------|
 | **CoinGecko** | BTC spot, 24h price history | Public |
-| **Deribit** | DVOL index (30-day IV) | Public |
+| **Deribit** | Full BTC options chain (~900 options), DVOL index | Public |
 | **Kalshi** | Market listings, pricing | Public |
 
 ### Implied Volatility
 
-The primary IV input is Deribit's **DVOL index**, a 30-day implied volatility measure
-for BTC options.
+The model uses **strike-matched, tenor-interpolated IV** from Deribit's full options
+chain when possible. For each Kalshi threshold, we look up the Deribit option with the
+closest strike and expiry, and use its mark IV. This captures both the **skew** (OTM puts
+trade at higher IV than ATM) and the **term structure** (short-dated vol differs from
+30-day vol).
 
-**Caveat:** Using 30-day IV for shorter-horizon events involves a horizon mismatch.
-The model scales vol using √t, but this assumes constant vol across horizons —
-a known simplification.
+When interpolating between two expiry tenors, the model uses **total variance
+interpolation** (σ²t space) to avoid calendar spread arbitrage artifacts.
+
+Falls back to the **DVOL index** (30-day IV) when no close match exists.
 
 ### Realized Volatility
 
 Computed from 24h of BTC price data (~5-minute intervals from CoinGecko).
 Annualized standard deviation of log returns.
+
+### IV-RV Blending
+
+When both IV and RV are available, the model blends them based on their ratio
+as a **vol regime indicator**:
+
+| Regime | Condition | IV Weight | Interpretation |
+|--------|-----------|-----------|----------------|
+| Expansion | IV/RV > 1.3 | 70% | Options market expects more vol |
+| Neutral | 0.7–1.3 | 55% | Aligned, slight IV preference |
+| Compression | IV/RV < 0.7 | 30% | Recent moves exceed what's priced |
 """)
 
     with col2:
@@ -752,14 +829,20 @@ Annualized standard deviation of log returns.
 
 **Threshold markets** ("BTC above $K"):
 
-P(S_T > K) = Φ(−d₂) where d₂ = [ln(K/S₀) − 0.5σ²t] / (σ√t)
+P(S_T > K) using a **Student-t distribution** (df=5) applied to:
+
+d₂ = [ln(K/S₀) − 0.5σ²t] / (σ√t)
+
+The t-distribution is used instead of the normal CDF to capture BTC's fat tails —
+large moves happen more often than a Gaussian predicts. The degrees-of-freedom
+parameter (df=5) is a standard pragmatic choice for crypto assets.
 
 **Range markets** ("BTC between $A and $B"):
 
 P(A ≤ S_T < B) = P(S_T > A) − P(S_T > B)
 
-Both use a log-normal assumption with **zero drift** (reasonable for short horizons)
-and volatility from either IV or RV.
+Both use **zero drift** (reasonable for short horizons) and the best available
+volatility input (strike-matched IV > DVOL > RV).
 
 ### Signal Generation
 
@@ -771,13 +854,19 @@ and volatility from either IV or RV.
 | BUY NO | adj. edge < −5% |
 | NO TRADE | otherwise |
 
+Confidence is reduced by: illiquid quotes, wide spreads, low volume,
+missing data, short expiry, and large IV-RV disagreement.
+
 ### Assumptions & Limitations
 
-- **Log-normal tails**: underestimates extreme BTC moves
-- **Constant vol**: breaks down during volatile regimes
+- **Student-t tails** improve on log-normal but df=5 is still an approximation
+  of BTC's true tail behavior
+- **Constant vol per horizon**: vol surface lookup helps, but within-horizon
+  vol clustering is not modeled
 - **Zero drift**: ignores momentum, reasonable for short horizons
-- **√t scaling**: rough approximation from 30-day IV to shorter periods
-- **No microstructure**: ignores order flow and market impact
+- **No jump diffusion**: macro events, ETF flows, and regulatory news can cause
+  discrete gaps that continuous models miss
+- **No microstructure**: order flow, slippage, and market impact not modeled
 - **Prototype only**: signals are illustrative, not trading advice
 """)
 

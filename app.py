@@ -1242,22 +1242,55 @@ def render_deep_dive(data):
     rv = data["rv_data"].get("realized_vol")
     vol_surface = data["iv_data"].get("vol_surface")
 
-    # selector
+    # pre-analyze to get discrepancies, then sort by largest
+    # group by expiry for per-expiry forwards
+    _dd_expiry_groups = {}
+    for entry in ranked:
+        h = entry["hours_to_expiry"]
+        matched = False
+        for bh in _dd_expiry_groups:
+            if abs(h - bh) < 1.0:
+                _dd_expiry_groups[bh].append(entry)
+                matched = True
+                break
+        if not matched:
+            _dd_expiry_groups[h] = [entry]
+
+    _dd_forwards = {bh: _estimate_market_forward(entries) for bh, entries in _dd_expiry_groups.items()}
+
+    def _dd_fwd(hours):
+        for bh, fwd in _dd_forwards.items():
+            if abs(hours - bh) < 1.0:
+                return fwd
+        return None
+
+    pre_analyzed = []
+    for r in ranked:
+        try:
+            fwd = _dd_fwd(r["hours_to_expiry"])
+            a = analyze_market(r, spot_price, iv, rv, vol_surface, forward=fwd)
+            edge = a["signal"].get("raw_edge")
+            pre_analyzed.append((r, a, abs(edge) if edge is not None else 0))
+        except Exception:
+            continue
+
+    # sort by absolute discrepancy descending
+    pre_analyzed.sort(key=lambda x: x[2], reverse=True)
+
     labels = []
-    for r in ranked[:30]:
+    for r, a, abs_edge in pre_analyzed:
         p = r["params"]
         label = fmt_label(p)
         exp = fmt_expiry(r["hours_to_expiry"])
-        prob = f" | {p['market_prob']:.0%}" if p.get("market_prob") is not None else ""
-        liq_warn = " ⚠" if p.get("liquidity") != "two_sided" else ""
-        labels.append(f"{label} ({exp}{prob}){liq_warn}")
+        edge = a["signal"].get("raw_edge")
+        edge_str = f" | Δ {edge:+.1%}" if edge is not None else ""
+        labels.append(f"{label} ({exp}{edge_str})")
 
     idx = st.selectbox("Select market:", range(len(labels)), format_func=lambda i: labels[i])
-    entry = ranked[idx]
+    entry, analysis, _ = pre_analyzed[idx]
 
     try:
-        kalshi_fwd = _estimate_market_forward(ranked)
-        analysis = analyze_market(entry, spot_price, iv, rv, vol_surface, forward=kalshi_fwd)
+        pass  # analysis already computed above
     except Exception as e:
         st.error(f"Analysis failed: {e}")
         return

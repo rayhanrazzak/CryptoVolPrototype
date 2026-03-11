@@ -1510,13 +1510,27 @@ def render_header(data):
             st.metric("BTC Spot", "—")
 
     with c2:
-        fwd = _estimate_market_forward(data["ranked_markets"])
+        # use nearest expiry for the header forward
+        ranked = data["ranked_markets"]
+        threshold_markets = [r for r in ranked if r["params"].get("market_type") == "threshold"]
+        if threshold_markets:
+            nearest_h = min(r["hours_to_expiry"] for r in threshold_markets)
+            nearest_bucket = [r for r in threshold_markets if abs(r["hours_to_expiry"] - nearest_h) < 1.0]
+            fwd = _estimate_market_forward(nearest_bucket)
+            # get expiry label
+            from zoneinfo import ZoneInfo
+            _et = ZoneInfo("America/New_York")
+            exp_dt = nearest_bucket[0].get("expiry")
+            exp_label = exp_dt.astimezone(_et).strftime("%-I%p ET").replace("AM", "am").replace("PM", "pm") if exp_dt else ""
+        else:
+            fwd = None
+            exp_label = ""
         spot_px = spot.get("price")
         if fwd and spot_px:
             drift_pct = (fwd - spot_px) / spot_px * 100
-            st.metric("Kalshi Forward", f"${fwd:,.0f}", f"{drift_pct:+.1f}%")
+            st.metric(f"Kalshi Fwd ({exp_label})", f"${fwd:,.0f}", f"{drift_pct:+.1f}%")
         else:
-            st.metric("Kalshi Forward", "—")
+            st.metric("Kalshi Fwd", "—")
 
     with c3:
         dvol = iv_data.get("dvol")

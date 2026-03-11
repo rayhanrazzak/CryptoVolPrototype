@@ -512,7 +512,7 @@ def fetch_all_data():
     }
 
 
-def analyze_market(entry, spot_price, iv, rv, vol_surface=None):
+def analyze_market(entry, spot_price, iv, rv, vol_surface=None, forward=None):
     market = entry["market"]
     params = entry.get("params") or kalshi_client.extract_market_params(market)
     hours = entry["hours_to_expiry"]
@@ -530,6 +530,7 @@ def analyze_market(entry, spot_price, iv, rv, vol_surface=None):
             range_low=params.get("range_low"),
             range_high=params.get("range_high"),
             vol_surface=vol_surface,
+            forward=forward,
         )
     else:
         fv = {"model_prob": None, "iv_fair_prob": None, "rv_fair_prob": None}
@@ -561,6 +562,7 @@ def analyze_market(entry, spot_price, iv, rv, vol_surface=None):
         tail_adjustment=fv.get("iv_tail_adjustment"),
         strike_matched_iv=fv.get("strike_matched_iv"),
         liquidity=params.get("liquidity"),
+        forward=forward,
     )
 
     return {
@@ -570,6 +572,7 @@ def analyze_market(entry, spot_price, iv, rv, vol_surface=None):
         "signal": sig,
         "explanation": explanation,
         "hours_to_expiry": hours,
+        "expiry": entry.get("expiry"),
     }
 
 
@@ -727,7 +730,7 @@ def render_vol_heatmap(vol_surface, spot):
 
 
 def render_edge_scatter(analyses, spot):
-    """Edge vs distance from spot — shows favorite-longshot bias."""
+    """Discrepancy vs distance from spot — shows favorite-longshot bias."""
     pts = []
     for a in analyses:
         threshold = a["params"].get("threshold")
@@ -761,7 +764,7 @@ def render_edge_scatter(analyses, spot):
             name=name,
             marker=dict(color=color, size=9, line=dict(width=1, color="#FFFFFF")),
             text=[p["label"] for p in subset],
-            hovertemplate="%{text}<br>Distance: %{x:+.1f}%<br>Edge: %{y:+.1f}%<extra></extra>",
+            hovertemplate="%{text}<br>Distance: %{x:+.1f}%<br>Discrepancy: %{y:+.1f}%<extra></extra>",
         ))
 
     # reference lines
@@ -785,9 +788,9 @@ def render_edge_scatter(analyses, spot):
     )
 
     fig.update_layout(**chart_layout(
-        title=dict(text="Edge vs Distance from Spot", font=dict(size=14)),
+        title=dict(text="Discrepancy vs Distance from Spot", font=dict(size=14)),
         xaxis_title="Distance from Spot (%)",
-        yaxis_title="Edge: Model − Market (%)",
+        yaxis_title="Discrepancy: Model − Market (%)",
         height=380,
     ))
     st.plotly_chart(fig, use_container_width=True)
@@ -870,7 +873,7 @@ def render_prob_comparison_detail(params, fv, sig):
         edge = mdl - mkt
         edge_color = CHART_COLORS["emerald"] if edge > 0 else CHART_COLORS["rose"]
         fig.add_annotation(
-            text=f"Edge: {edge:+.1%}",
+            text=f"Discrepancy: {edge:+.1%}",
             xref="paper", yref="paper", x=0.95, y=0.95,
             showarrow=False,
             font=dict(size=13, color=edge_color, family="Azeret Mono"),
@@ -937,27 +940,17 @@ def render_trading_desk(data):
         st.warning("No active BTC markets found on Kalshi.")
         return
 
-    # ── Inline filters ─────────────────────────────────────
-    f1, f2 = st.columns(2)
-    with f1:
-        show_type = st.radio("Market Type", ["All", "Threshold", "Range"], horizontal=True)
-    with f2:
-        show_liq = st.radio("Liquidity", ["All", "Two-Sided"], horizontal=True)
+    # only threshold markets — range contracts aren't reliably available
+    filtered = [r for r in ranked if r["params"].get("market_type") == "threshold"]
 
-    # filter
-    filtered = ranked
-    if show_type == "Threshold":
-        filtered = [r for r in filtered if r["params"].get("market_type") == "threshold"]
-    elif show_type == "Range":
-        filtered = [r for r in filtered if r["params"].get("market_type") == "range"]
-    if show_liq == "Two-Sided":
-        filtered = [r for r in filtered if r["params"].get("liquidity") == "two_sided"]
+    # compute Kalshi forward to center the model on market's expected price
+    kalshi_forward = _estimate_market_forward(filtered)
 
-    # analyze all (up to 30)
+    # analyze all available
     analyses = []
-    for entry in filtered[:30]:
+    for entry in filtered:
         try:
-            analyses.append(analyze_market(entry, spot_price, iv, rv, vol_surface))
+            analyses.append(analyze_market(entry, spot_price, iv, rv, vol_surface, forward=kalshi_forward))
         except Exception:
             continue
 
@@ -965,29 +958,73 @@ def render_trading_desk(data):
         st.warning("No markets match the current filters.")
         return
 
-    # ── LLM overview ─────────────────────────────────────
-    if llm_explainer.is_available():
-        overview = llm_explainer.synthesize_overview(analyses, spot_price, data["iv_data"], data["rv_data"])
-        if overview:
-            st.markdown(f'<div class="synthesis-card">{overview}</div>', unsafe_allow_html=True)
-
     # ── Hero chart: Options Model vs Prediction Market ────
-    # build threshold points for the probability curves
-    threshold_analyses = [
+    all_threshold = [
         a for a in analyses
         if a["params"].get("market_type") == "threshold"
+        and a["params"].get("direction") == "above"
         and a["params"].get("market_prob") is not None
         and a["fair_value"].get("model_prob") is not None
     ]
-    threshold_analyses.sort(key=lambda a: a["params"]["threshold"])
+
+    # group by expiry bucket (contracts within 1hr of each other)
+    expiry_buckets = {}
+    for a in all_threshold:
+        h = a["hours_to_expiry"]
+        matched = False
+        for bucket_h in expiry_buckets:
+            if abs(h - bucket_h) < 1.0:
+                expiry_buckets[bucket_h].append(a)
+                matched = True
+                break
+        if not matched:
+            expiry_buckets[h] = [a]
+
+    if expiry_buckets:
+        bucket_keys = sorted(expiry_buckets.keys())
+        # show expiry in Eastern time (Kalshi's reference timezone)
+        from zoneinfo import ZoneInfo
+        _et = ZoneInfo("America/New_York")
+        def _expiry_label(bucket_analyses):
+            exp = bucket_analyses[0].get("expiry")
+            if exp:
+                et = exp.astimezone(_et)
+                return et.strftime("%b %-d %-I:%M%p ET").replace("AM", "am").replace("PM", "pm")
+            return fmt_expiry(bucket_analyses[0]["hours_to_expiry"])
+        expiry_labels = [_expiry_label(expiry_buckets[k]) for k in bucket_keys]
+        sel_exp = st.radio("Expiry", expiry_labels, horizontal=True)
+        sel_bucket = bucket_keys[expiry_labels.index(sel_exp)]
+        # deduplicate by threshold within the bucket
+        _seen = {}
+        for a in expiry_buckets[sel_bucket]:
+            t = a["params"]["threshold"]
+            if t not in _seen:
+                _seen[t] = a
+        threshold_analyses = sorted(_seen.values(), key=lambda a: a["params"]["threshold"])
+    else:
+        threshold_analyses = []
 
     if len(threshold_analyses) >= 2 and spot_price:
         _render_hero_chart(threshold_analyses, spot_price)
 
+        # LLM analysis of the chart data (cached in session to avoid repeat API calls)
+        if llm_explainer.is_available():
+            cache_key = f"chart_llm_{sel_exp}" if 'sel_exp' in dir() else "chart_llm"
+            if cache_key not in st.session_state:
+                forward = _estimate_market_forward(threshold_analyses)
+                st.session_state[cache_key] = llm_explainer.synthesize_chart_analysis(
+                    threshold_analyses, spot_price,
+                    data["iv_data"], data["rv_data"],
+                    forward=forward,
+                )
+            chart_note = st.session_state[cache_key]
+            if chart_note:
+                st.markdown(f'<div class="synthesis-card">{chart_note}</div>', unsafe_allow_html=True)
+
     # ── Contract selector ──────────────────────────────────
     contract_labels = [
         f"{fmt_label(a['params'])} · {fmt_expiry(a['hours_to_expiry'])} · "
-        f"Edge {a['signal']['raw_edge']:+.1%}" if a["signal"]["raw_edge"] is not None
+        f"Δ {a['signal']['raw_edge']:+.1%}" if a["signal"]["raw_edge"] is not None
         else f"{fmt_label(a['params'])} · {fmt_expiry(a['hours_to_expiry'])}"
         for a in analyses
     ]
@@ -1002,9 +1039,9 @@ def render_trading_desk(data):
     selected = analyses[sel_idx]
     _render_contract_detail(selected)
 
-    # ── Edge scatter in expander ───────────────────────────
+    # ── Discrepancy scatter in expander ─────────────────────
     if spot_price and len(threshold_analyses) >= 3:
-        with st.expander("Edge vs Distance from Spot"):
+        with st.expander("Discrepancy vs Distance from Spot"):
             render_edge_scatter(analyses, spot_price)
 
     # ── Full table in expander ─────────────────────────────
@@ -1067,6 +1104,7 @@ def _render_hero_chart(threshold_analyses, spot):
         yaxis_title="P(BTC Above Threshold)",
         yaxis_tickformat=".0%",
         xaxis=dict(tickformat="$,.0f", gridcolor="#ECEAE6"),
+        hovermode="x unified",
         height=440,
         legend=dict(
             orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5,
@@ -1076,17 +1114,6 @@ def _render_hero_chart(threshold_analyses, spot):
     ))
     st.plotly_chart(fig, use_container_width=True)
 
-    # edge callout: largest absolute edge
-    max_edge_a = max(pts, key=lambda a: abs(a["signal"].get("raw_edge") or 0))
-    max_edge = max_edge_a["signal"].get("raw_edge")
-    if max_edge is not None:
-        label = fmt_label(max_edge_a["params"])
-        direction = "underpriced" if max_edge > 0 else "overpriced"
-        st.caption(
-            f"Largest divergence: **{label}** — model sees {abs(max_edge):.1%} edge "
-            f"({direction} by Kalshi). The shaded area shows where the options-implied "
-            f"probability differs from the prediction market."
-        )
 
 
 def _render_contract_detail(analysis):
@@ -1097,20 +1124,18 @@ def _render_contract_detail(analysis):
     conf = analysis["confidence"]
 
     # metrics row
-    m1, m2, m3, m4, m5, m6 = st.columns(6)
+    m1, m2, m3, m4, m5 = st.columns(5)
     with m1:
         st.metric("Market", fmt_pct(p["market_prob"]))
     with m2:
         st.metric("Model", fmt_pct(fv.get("model_prob")))
     with m3:
-        st.metric("Edge", f"{sig['raw_edge']:+.1%}" if sig["raw_edge"] is not None else "—")
+        st.metric("Discrepancy", f"{sig['raw_edge']:+.1%}" if sig["raw_edge"] is not None else "—")
     with m4:
         matched_iv = fv.get("strike_matched_iv")
         st.metric("Strike IV", f"{matched_iv:.1f}%" if matched_iv else "—")
     with m5:
         st.metric("Signal", sig["signal"])
-    with m6:
-        st.metric("Confidence", conf["confidence_label"])
 
     # explanation
     st.markdown(f'<div class="analysis-box">{analysis["explanation"]}</div>', unsafe_allow_html=True)
@@ -1132,9 +1157,8 @@ def _render_contract_table(analyses):
             "Expiry": fmt_expiry(a["hours_to_expiry"]),
             "Mkt": fmt_pct(p["market_prob"], 0),
             "Model": fmt_pct(fv.get("model_prob"), 0),
-            "Edge": f"{sig['raw_edge']:+.1%}" if sig["raw_edge"] is not None else "—",
+            "Discrepancy": f"{sig['raw_edge']:+.1%}" if sig["raw_edge"] is not None else "—",
             "Signal": sig["signal"],
-            "Conf": conf["confidence_label"],
         })
 
     df = pd.DataFrame(table_rows)
@@ -1146,10 +1170,7 @@ def _render_contract_table(analyses):
             return "background-color: rgba(184,59,54,0.08); color: #B83B36; font-weight: 600"
         return "color: #8C8880"
 
-    def _style_conf(val):
-        return {"HIGH": "color:#2D8F4E", "MEDIUM": "color:#9A7B4F", "LOW": "color:#B83B36"}.get(val, "")
-
-    styled = df.style.map(_style_sig, subset=["Signal"]).map(_style_conf, subset=["Conf"])
+    styled = df.style.map(_style_sig, subset=["Signal"])
     st.dataframe(styled, use_container_width=True, hide_index=True,
                  height=min(len(df) * 36 + 42, 520))
 
@@ -1210,7 +1231,8 @@ def render_deep_dive(data):
     entry = ranked[idx]
 
     try:
-        analysis = analyze_market(entry, spot_price, iv, rv, vol_surface)
+        kalshi_fwd = _estimate_market_forward(ranked)
+        analysis = analyze_market(entry, spot_price, iv, rv, vol_surface, forward=kalshi_fwd)
     except Exception as e:
         st.error(f"Analysis failed: {e}")
         return
@@ -1303,9 +1325,8 @@ def render_deep_dive(data):
         for label, val in prob_items:
             st.markdown(f"{label}: {val}")
 
-        st.metric("Confidence", f"{conf['confidence']:.0%}")
         if conf["concerns"]:
-            st.caption(", ".join(conf["concerns"]))
+            st.caption("⚠ " + ", ".join(conf["concerns"]))
 
         st.divider()
 
@@ -1392,10 +1413,10 @@ used: strike-matched IV > DVOL > RV.
 
 | Step | Logic |
 |------|-------|
-| Raw edge | model prob − market prob |
-| Adjusted edge | raw × confidence − spread cost |
-| BUY YES | adj. edge > +5% |
-| BUY NO | adj. edge < −5% |
+| Raw discrepancy | model prob − market prob |
+| Adjusted discrepancy | raw × confidence − spread cost |
+| BUY YES | adj. discrepancy > +5% |
+| BUY NO | adj. discrepancy < −5% |
 | NO TRADE | otherwise |
 
 Confidence reduced by: illiquid quotes, wide spreads, low volume,
@@ -1405,7 +1426,7 @@ missing data, short expiry, large IV-RV divergence.
 
 When a `GEMINI_API_KEY` is configured, the app generates concise, data-rich
 trade notes using Google Gemini. The LLM receives structured quantitative
-context (edge, vol inputs, skew ratios, tail adjustments) and produces
+context (discrepancy, vol inputs, skew ratios, tail adjustments) and produces
 institutional-style analysis. Falls back to the deterministic engine
 when unconfigured.
 

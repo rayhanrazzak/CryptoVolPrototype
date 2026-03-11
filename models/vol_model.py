@@ -69,6 +69,7 @@ def threshold_probability(
     direction: str = "above",
     use_t: bool = True,
     df: int = None,
+    forward: float = None,
 ) -> dict:
     """
     Estimate probability of BTC crossing a threshold.
@@ -83,10 +84,13 @@ def threshold_probability(
     if vol_annual_pct <= 0 or hours_to_expiry <= 0 or spot <= 0 or threshold <= 0:
         return {"prob": 0.5, "prob_normal": 0.5, "prob_t": 0.5, "d2": 0}
 
+    # center distribution on forward price if available, otherwise spot
+    center = forward if forward and forward > 0 else spot
+
     sigma = vol_annual_pct / 100.0
     t = hours_to_expiry / 8760.0
 
-    d2 = (math.log(threshold / spot) - 0.5 * sigma**2 * t) / (sigma * math.sqrt(t))
+    d2 = (math.log(threshold / center) - 0.5 * sigma**2 * t) / (sigma * math.sqrt(t))
 
     # Gaussian estimate
     prob_above_normal = float(stats.norm.cdf(-d2))
@@ -126,13 +130,14 @@ def range_probability(
     hours_to_expiry: float,
     use_t: bool = True,
     df: int = None,
+    forward: float = None,
 ) -> dict:
     """
     Probability that BTC lands in [range_low, range_high) at expiry.
     P(low <= S_T < high) = P(S_T > low) - P(S_T > high)
     """
-    above_low = threshold_probability(spot, range_low, vol_annual_pct, hours_to_expiry, "above", use_t, df)
-    above_high = threshold_probability(spot, range_high, vol_annual_pct, hours_to_expiry, "above", use_t, df)
+    above_low = threshold_probability(spot, range_low, vol_annual_pct, hours_to_expiry, "above", use_t, df, forward)
+    above_high = threshold_probability(spot, range_high, vol_annual_pct, hours_to_expiry, "above", use_t, df, forward)
 
     prob = max(above_low["prob"] - above_high["prob"], 0.0)
     prob_normal = max(above_low["prob_normal"] - above_high["prob_normal"], 0.0)
@@ -196,6 +201,7 @@ def compute_fair_value(
     range_low: float = None,
     range_high: float = None,
     vol_surface: dict = None,
+    forward: float = None,
 ) -> dict:
     """
     Compute fair probability estimates using the best available vol inputs.
@@ -249,9 +255,9 @@ def compute_fair_value(
 
     def _calc(vol_pct):
         if market_type == "range" and range_low and range_high:
-            return range_probability(spot, range_low, range_high, vol_pct, hours_to_expiry)
+            return range_probability(spot, range_low, range_high, vol_pct, hours_to_expiry, forward=forward)
         else:
-            return threshold_probability(spot, threshold, vol_pct, hours_to_expiry, direction or "above")
+            return threshold_probability(spot, threshold, vol_pct, hours_to_expiry, direction or "above", forward=forward)
 
     # IV-based estimate (using best available IV)
     if primary_iv and primary_iv > 0:

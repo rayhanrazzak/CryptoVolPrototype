@@ -78,6 +78,9 @@ def assess_confidence(
         confidence -= 0.10
         concerns.append(f"IV-RV divergence ({iv_rv_divergence:+.1f}%)")
 
+    # cap at 85% — even with perfect data, model uncertainty remains
+    # (zero-drift assumption, vol surface interpolation, regime estimation)
+    confidence = min(confidence, 0.85)
     confidence = max(confidence, 0.1)
 
     return {
@@ -132,13 +135,13 @@ def generate_signal(
 
     if abs_edge < threshold:
         signal = "NO TRADE"
-        reason = f"edge too small ({adjusted_edge:+.1%} vs {threshold:.1%} threshold)"
+        reason = f"discrepancy too small ({adjusted_edge:+.1%} vs {threshold:.1%} threshold)"
     elif adjusted_edge > 0:
         signal = "BUY YES"
-        reason = f"model sees {adjusted_edge:+.1%} edge — market underpricing YES"
+        reason = f"model sees {adjusted_edge:+.1%} discrepancy — market underpricing YES"
     else:
         signal = "BUY NO"
-        reason = f"model sees {abs(adjusted_edge):.1%} edge — market overpricing YES"
+        reason = f"model sees {abs(adjusted_edge):.1%} discrepancy — market overpricing YES"
 
     return {
         "signal": signal,

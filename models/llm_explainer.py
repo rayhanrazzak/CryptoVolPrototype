@@ -13,7 +13,7 @@ import requests
 
 GEMINI_URL = (
     "https://generativelanguage.googleapis.com/v1beta/models/"
-    "gemini-2.0-flash-lite:generateContent"
+    "gemini-2.5-flash:generateContent"
 )
 
 # in-memory cache to avoid redundant calls within a session
@@ -50,7 +50,7 @@ def synthesize_trade(
         "the data below, and sound like a professional trading desk memo. "
         "No hedging language, no disclaimers, no bullet points. Just sharp analysis.\n\n"
         f"{context}\n\n"
-        "Write a synthesis covering: (1) what the edge is and why it exists, "
+        "Write a synthesis covering: (1) what the discrepancy is and why it exists, "
         "(2) the key vol/skew insight driving the pricing, "
         "(3) the main risk to the trade."
     )
@@ -85,7 +85,7 @@ def synthesize_overview(
         if edge is not None and mkt is not None:
             lines.append(
                 f"  {label}: mkt={mkt:.0%} model={mdl:.0%} "
-                f"edge={edge:+.1%} → {signal}"
+                f"discrepancy={edge:+.1%} → {signal}"
             )
 
     dvol = iv_data.get("dvol")
@@ -120,6 +120,74 @@ def synthesize_overview(
     return result
 
 
+def synthesize_chart_analysis(
+    threshold_analyses: list[dict],
+    spot: float,
+    iv_data: dict,
+    rv_data: dict,
+    forward: float | None = None,
+) -> str | None:
+    """
+    Generate analysis of the hero chart — options model vs prediction market
+    probability curves. Receives the same data points plotted on the chart.
+    """
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key or not threshold_analyses:
+        return None
+
+    # build a compact table of the chart data
+    rows = []
+    for a in threshold_analyses:
+        p = a["params"]
+        fv = a["fair_value"]
+        sig = a["signal"]
+        threshold = p.get("threshold", 0)
+        dist_pct = (threshold - spot) / spot * 100 if spot else 0
+        mkt = p.get("market_prob")
+        mdl = fv.get("model_prob")
+        edge = sig.get("raw_edge")
+        strike_iv = fv.get("strike_matched_iv")
+        rows.append(
+            f"  ${threshold:,.0f} ({dist_pct:+.1f}%): "
+            f"kalshi={mkt:.1%} model={mdl:.1%} discrepancy={edge:+.1%}"
+            + (f" iv={strike_iv:.0f}%" if strike_iv else "")
+        )
+
+    dvol = iv_data.get("dvol")
+    rv = rv_data.get("realized_vol")
+    ratio_str = f"{dvol/rv:.2f}" if (dvol and rv and rv > 0) else "N/A"
+
+    context = (
+        f"BTC spot: ${spot:,.0f}\n"
+        + (f"Kalshi forward (50% crossover): ${forward:,.0f}\n" if forward else "")
+        + f"DVOL (30d IV): {dvol:.1f}%\n"
+        + (f"Realized vol (24h): {rv:.1f}%\n" if rv else "")
+        + f"IV/RV ratio: {ratio_str}\n"
+        f"Threshold probabilities (strike, kalshi vs options model, discrepancy):\n"
+        + "\n".join(rows)
+    )
+
+    cache_key = hashlib.md5(("chart:" + context).encode()).hexdigest()
+    if cache_key in _cache:
+        return _cache[cache_key]
+
+    prompt = (
+        "You are a quantitative analyst at a crypto trading desk. You're looking at "
+        "a chart comparing Kalshi prediction market probabilities vs an options-implied "
+        "model for BTC threshold contracts. Write 3-5 sharp sentences analyzing what "
+        "the curves show. Reference specific strikes and numbers. Note where the "
+        "biggest divergences are and what might explain them (drift, skew, vol regime). "
+        "Sound like a professional desk note — no disclaimers, no bullet points, "
+        "no hedging language.\n\n"
+        f"{context}"
+    )
+
+    result = _call_gemini(api_key, prompt, max_tokens=500)
+    if result:
+        _cache[cache_key] = result
+    return result
+
+
 def _call_gemini(api_key: str, prompt: str, max_tokens: int = 200) -> str | None:
     """Make a Gemini API call. Returns text or None on failure."""
     try:
@@ -130,12 +198,16 @@ def _call_gemini(api_key: str, prompt: str, max_tokens: int = 200) -> str | None
                 "generationConfig": {
                     "temperature": 0.3,
                     "maxOutputTokens": max_tokens,
+                    "thinkingConfig": {"thinkingBudget": 0},
                 },
             },
-            timeout=12,
+            timeout=15,
         )
         resp.raise_for_status()
-        return resp.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
+        # extract the text part (skip any thought parts)
+        parts = resp.json()["candidates"][0]["content"]["parts"]
+        text_parts = [p["text"] for p in parts if "text" in p and not p.get("thought")]
+        return text_parts[-1].strip() if text_parts else None
     except Exception:
         return None
 
@@ -169,7 +241,7 @@ def _build_trade_context(analysis, spot, iv_data, rv_data):
 
     edge = sig.get("raw_edge")
     if edge is not None:
-        parts.append(f"Raw edge: {edge:+.1%}")
+        parts.append(f"Raw discrepancy: {edge:+.1%}")
     parts.append(f"Signal: {sig.get('signal', 'N/A')}")
 
     if strike_iv:

@@ -27,22 +27,30 @@ def explain_market(
     tail_adjustment: float = None,
     strike_matched_iv: float = None,
     liquidity: str = None,
+    forward: float = None,
 ) -> str:
     """
     Generate a concise explanation of the analysis for a given market.
     """
     parts = []
 
-    # opening: spot vs threshold context
-    if threshold and direction and spot:
-        distance_pct = abs(spot - threshold) / spot * 100
-        rel = "above" if spot > threshold else "below"
-        parts.append(
-            f"BTC is currently ${spot:,.0f}, sitting {distance_pct:.1f}% {rel} "
-            f"the ${threshold:,.0f} threshold."
-        )
+    # opening: forward vs threshold context (model is centered on forward)
+    center = forward or spot
+    if threshold and direction and center:
+        distance_pct = abs(center - threshold) / center * 100
+        rel = "above" if center > threshold else "below"
+        if forward and spot:
+            parts.append(
+                f"The Kalshi forward is ${forward:,.0f} (spot ${spot:,.0f}), "
+                f"{distance_pct:.1f}% {rel} the ${threshold:,.0f} threshold."
+            )
+        elif spot:
+            parts.append(
+                f"BTC is currently ${spot:,.0f}, sitting {distance_pct:.1f}% {rel} "
+                f"the ${threshold:,.0f} threshold."
+            )
 
-    # edge assessment
+    # discrepancy assessment
     if market_prob is not None and model_prob is not None:
         edge = model_prob - market_prob
         if abs(edge) < 0.02:
@@ -130,7 +138,7 @@ def explain_market(
 
     # spread note
     if spread is not None and spread > 0.08:
-        parts.append(f"Bid-ask spread is wide ({spread:.0%}), which erodes tradeable edge.")
+        parts.append(f"Bid-ask spread is wide ({spread:.0%}), which erodes any tradeable discrepancy.")
 
     # expiry caveat
     if hours_to_expiry is not None and hours_to_expiry < 2:
@@ -153,11 +161,11 @@ def explain_market(
 def explain_methodology_brief() -> str:
     """Short methodology summary for the dashboard."""
     return (
-        "Fair probabilities are estimated using a log-normal framework with "
-        "Student-t fat-tail adjustment (df=5) for more realistic BTC tail risk. "
+        "Fair probabilities are estimated using a log-normal (Gaussian) framework "
+        "centered on the Kalshi forward price. "
         "Volatility is sourced from Deribit's options chain — strike-matched and "
         "tenor-interpolated when possible, falling back to the DVOL index. "
         "Implied and realized vol are blended based on their ratio as a regime signal. "
-        "Signals require minimum edge after confidence and spread penalties. "
+        "Signals require minimum discrepancy after confidence and spread penalties. "
         "All signals are illustrative only."
     )

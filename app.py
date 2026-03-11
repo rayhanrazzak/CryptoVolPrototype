@@ -456,7 +456,7 @@ def fmt_vol(val) -> str:
 # Data fetching
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-@st.cache_data(ttl=config.REFRESH_INTERVAL)
+@st.cache_data(ttl=config.REFRESH_INTERVAL, show_spinner=False)
 def fetch_all_data():
     errors = []
 

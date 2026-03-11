@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 import config
+from data.cache import get_cached, set_cached
 
 
 def _get_headers() -> dict:
@@ -25,6 +26,11 @@ def discover_btc_events(limit: int = 10) -> list[dict]:
     Discover open BTC events from known series.
     KXBTCD = threshold-style, KXBTC = range-style.
     """
+    cache_key = f"kalshi_btc_events_{limit}"
+    cached = get_cached(cache_key, ttl_seconds=30)
+    if cached is not None:
+        return cached
+
     url = f"{config.KALSHI_API_BASE}/events"
     all_events = []
 
@@ -45,6 +51,7 @@ def discover_btc_events(limit: int = 10) -> list[dict]:
         except requests.RequestException:
             continue
 
+    set_cached(cache_key, all_events)
     return all_events
 
 
@@ -53,6 +60,11 @@ def discover_btc_markets() -> list[dict]:
     Pull all individual BTC markets from discovered events.
     Enriches each market with parsed metadata.
     """
+    cache_key = "kalshi_btc_markets"
+    cached = get_cached(cache_key, ttl_seconds=30)
+    if cached is not None:
+        return cached
+
     events = discover_btc_events()
     markets = []
 
@@ -66,6 +78,7 @@ def discover_btc_markets() -> list[dict]:
             m["_series"] = series
             markets.append(m)
 
+    set_cached(cache_key, markets)
     return markets
 
 

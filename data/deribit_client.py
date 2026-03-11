@@ -12,6 +12,8 @@ import requests
 from datetime import datetime, timezone
 from collections import defaultdict
 
+from data.cache import get_cached, set_cached
+
 DERIBIT_BASE = "https://www.deribit.com/api/v2"
 
 
@@ -48,6 +50,11 @@ def get_btc_dvol() -> dict:
     Fetch the BTC DVOL index — Deribit's 30-day implied volatility index.
     Returns annualized vol as a percentage (e.g., 55.0 means 55% ann. vol).
     """
+    cache_key = "deribit_btc_dvol"
+    cached = get_cached(cache_key, ttl_seconds=30)
+    if cached is not None:
+        return cached
+
     now_ms = int(time.time() * 1000)
     url = f"{DERIBIT_BASE}/public/get_volatility_index_data"
     params = {
@@ -63,7 +70,9 @@ def get_btc_dvol() -> dict:
         return {"dvol": None, "error": "no DVOL data returned"}
 
     latest = data[-1]
-    return {"dvol": latest[4]}  # close value
+    result = {"dvol": latest[4]}  # close value
+    set_cached(cache_key, result)
+    return result
 
 
 def get_btc_options_summary() -> list[dict]:
@@ -71,11 +80,18 @@ def get_btc_options_summary() -> list[dict]:
     Fetch summary data for all active BTC options.
     Each entry includes mark_iv, underlying_price, etc.
     """
+    cache_key = "deribit_btc_options_summary"
+    cached = get_cached(cache_key, ttl_seconds=60)
+    if cached is not None:
+        return cached
+
     url = f"{DERIBIT_BASE}/public/get_book_summary_by_currency"
     params = {"currency": "BTC", "kind": "option"}
     resp = requests.get(url, params=params, timeout=15)
     resp.raise_for_status()
-    return resp.json()["result"]
+    result = resp.json()["result"]
+    set_cached(cache_key, result)
+    return result
 
 
 def build_vol_surface() -> dict:
@@ -88,6 +104,8 @@ def build_vol_surface() -> dict:
     - underlying: current underlying price from the options chain
     - raw_count: total options processed
     """
+    # the underlying get_btc_options_summary() call is cached at 60s,
+    # so this avoids redundant API hits even without its own cache
     summaries = get_btc_options_summary()
     now = datetime.now(timezone.utc)
 

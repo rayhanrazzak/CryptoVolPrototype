@@ -23,10 +23,10 @@ MIN_EDGE_THRESHOLD = 0.05       # 5% minimum edge for signal
 CONFIDENCE_PENALTY = 0.02       # penalize edge if data quality is weak
 SPREAD_PENALTY_FACTOR = 0.5     # fraction of spread to deduct from edge
 
-# Fat-tail adjustment: Student-t degrees of freedom
-# df=5 is a standard pragmatic choice for crypto (fatter than normal, not extreme)
-# higher df → closer to normal; lower df → fatter tails
-T_DIST_DF = 5
+# Distribution: using Gaussian (log-normal) as primary estimator
+# Student-t available for comparison but flattens the CDF too aggressively
+# against efficient prediction market pricing
+T_DIST_DF = 5  # kept for reference / comparison view
 
 # IV-RV blending regime thresholds
 # when IV/RV ratio exceeds these bounds, tilt the blend toward the dominant signal

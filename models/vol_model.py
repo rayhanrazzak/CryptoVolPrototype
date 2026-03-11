@@ -105,8 +105,9 @@ def threshold_probability(
         p_normal = 1.0 - prob_above_normal
         p_t = 1.0 - prob_above_t
 
-    # primary estimate uses t-distribution (more realistic for crypto)
-    primary = p_t if use_t else p_normal
+    # primary estimate uses Gaussian — closer to efficient market pricing
+    # t-distribution available for comparison but flattens the CDF too aggressively
+    primary = p_normal
 
     return {
         "prob": primary,

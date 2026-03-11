@@ -33,19 +33,19 @@ st.markdown("""
     @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Red+Hat+Display:wght@300;400;500;600;700&family=Azeret+Mono:wght@400;500;600&display=swap');
 
     :root {
-        --bg-deep: #0C0B09;
-        --bg-card: #141310;
-        --bg-elevated: #1A1916;
-        --border: #252320;
-        --border-subtle: #1C1B18;
-        --text-primary: #E8E4DE;
-        --text-secondary: #A09A90;
-        --text-muted: #706A60;
-        --accent-copper: #C9A87C;
-        --accent-teal: #6BA3BE;
-        --signal-long: #7AB87A;
-        --signal-short: #C75B5B;
-        --synthesis: #B08FC7;
+        --bg-deep: #F8F7F5;
+        --bg-card: #FFFFFF;
+        --bg-elevated: #F0EFEC;
+        --border: #E2E0DB;
+        --border-subtle: #ECEAE6;
+        --text-primary: #1A1814;
+        --text-secondary: #5C5850;
+        --text-muted: #9C9890;
+        --accent-copper: #9A7B4F;
+        --accent-teal: #3A8BA8;
+        --signal-long: #2D8F4E;
+        --signal-short: #B83B36;
+        --synthesis: #7E5EA8;
     }
 
     html, body, [data-testid="stAppViewContainer"], [data-testid="stApp"] {
@@ -116,8 +116,8 @@ st.markdown("""
 
     /* Signal badges */
     .sig-long {
-        background: rgba(122, 184, 122, 0.1);
-        color: #7AB87A;
+        background: rgba(45, 143, 78, 0.08);
+        color: #2D8F4E;
         padding: 5px 14px;
         border-radius: 3px;
         font-family: 'Azeret Mono', monospace;
@@ -125,11 +125,11 @@ st.markdown("""
         font-size: 0.78rem;
         letter-spacing: 0.04em;
         display: inline-block;
-        border: 1px solid rgba(122, 184, 122, 0.2);
+        border: 1px solid rgba(45, 143, 78, 0.18);
     }
     .sig-short {
-        background: rgba(199, 91, 91, 0.1);
-        color: #C75B5B;
+        background: rgba(184, 59, 54, 0.08);
+        color: #B83B36;
         padding: 5px 14px;
         border-radius: 3px;
         font-family: 'Azeret Mono', monospace;
@@ -137,11 +137,11 @@ st.markdown("""
         font-size: 0.78rem;
         letter-spacing: 0.04em;
         display: inline-block;
-        border: 1px solid rgba(199, 91, 91, 0.2);
+        border: 1px solid rgba(184, 59, 54, 0.18);
     }
     .sig-flat {
-        background: rgba(112, 106, 96, 0.1);
-        color: #A09A90;
+        background: rgba(156, 152, 144, 0.1);
+        color: #8C8880;
         padding: 5px 14px;
         border-radius: 3px;
         font-family: 'Azeret Mono', monospace;
@@ -149,13 +149,13 @@ st.markdown("""
         font-size: 0.78rem;
         letter-spacing: 0.04em;
         display: inline-block;
-        border: 1px solid rgba(112, 106, 96, 0.15);
+        border: 1px solid rgba(156, 152, 144, 0.15);
     }
 
     /* Confidence colors */
-    .conf-high { color: #7AB87A; }
-    .conf-med { color: #C9A87C; }
-    .conf-low { color: #C75B5B; }
+    .conf-high { color: #2D8F4E; }
+    .conf-med { color: #9A7B4F; }
+    .conf-low { color: #B83B36; }
 
     /* Synthesis card */
     .synthesis-card {
@@ -194,9 +194,9 @@ st.markdown("""
     }
 
     /* Liquidity badge */
-    .liq-good { color: #7AB87A; font-weight: 500; }
-    .liq-warn { color: #C9A87C; font-weight: 500; }
-    .liq-bad { color: #C75B5B; font-weight: 500; }
+    .liq-good { color: #2D8F4E; font-weight: 500; }
+    .liq-warn { color: #9A7B4F; font-weight: 500; }
+    .liq-bad { color: #B83B36; font-weight: 500; }
 
     /* Muted label */
     .muted-label {
@@ -248,15 +248,107 @@ st.markdown("""
         letter-spacing: -0.01em;
     }
 
-    /* Apple-style smooth scrolling */
+    /* Smooth scrolling */
     * { scroll-behavior: smooth; }
 
-    /* Selectbox / input styling */
+    /* ── Buttons ─────────────────────────────────────── */
+    .stButton > button {
+        font-family: 'Red Hat Display', sans-serif !important;
+        font-weight: 600;
+        font-size: 0.8rem;
+        letter-spacing: 0.03em;
+        background: var(--bg-elevated);
+        color: var(--text-primary);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 8px 20px;
+        transition: all 0.2s ease;
+    }
+    .stButton > button:hover {
+        background: var(--accent-copper);
+        color: #FFFFFF;
+        border-color: var(--accent-copper);
+    }
+    .stButton > button:active {
+        transform: scale(0.97);
+    }
+
+    /* ── Radio buttons (pill-style segmented control) ── */
+    div[role="radiogroup"] {
+        gap: 0 !important;
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 3px;
+        display: inline-flex !important;
+    }
+    div[role="radiogroup"] label {
+        font-family: 'Red Hat Display', sans-serif !important;
+        font-size: 0.78rem !important;
+        font-weight: 500;
+        color: var(--text-muted) !important;
+        border-radius: 8px;
+        padding: 6px 16px !important;
+        margin: 0 !important;
+        transition: all 0.2s ease;
+        border: none !important;
+        background: transparent !important;
+    }
+    div[role="radiogroup"] label[data-checked="true"],
+    div[role="radiogroup"] label:has(input:checked) {
+        background: var(--accent-copper) !important;
+        color: #FFFFFF !important;
+        font-weight: 600;
+    }
+    /* Hide the actual radio circle */
+    div[role="radiogroup"] label > div:first-child {
+        display: none !important;
+    }
+
+    /* ── Slider ──────────────────────────────────────── */
+    [data-testid="stSlider"] label {
+        font-family: 'Red Hat Display', sans-serif !important;
+        font-size: 0.78rem !important;
+        font-weight: 500;
+        color: var(--text-muted) !important;
+    }
+    [data-testid="stSlider"] [role="slider"] {
+        background: var(--accent-copper) !important;
+        border: 2px solid #FFFFFF !important;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.12);
+        width: 18px !important;
+        height: 18px !important;
+    }
+    [data-testid="stSlider"] [data-testid="stTickBar"] {
+        display: none;
+    }
+    /* Slider track */
+    [data-testid="stSlider"] div[role="slider"] ~ div {
+        background: var(--border) !important;
+    }
+
+    /* ── Selectbox ───────────────────────────────────── */
     [data-testid="stSelectbox"] label {
         font-family: 'Red Hat Display', sans-serif !important;
-        font-size: 0.82rem !important;
+        font-size: 0.78rem !important;
         font-weight: 500;
-        color: var(--text-secondary) !important;
+        color: var(--text-muted) !important;
+    }
+    [data-testid="stSelectbox"] > div > div {
+        background: var(--bg-card) !important;
+        border: 1px solid var(--border) !important;
+        border-radius: 10px !important;
+        font-family: 'Red Hat Display', sans-serif !important;
+        font-size: 0.85rem !important;
+        color: var(--text-primary) !important;
+    }
+    [data-testid="stSelectbox"] svg {
+        color: var(--text-muted) !important;
+    }
+
+    /* ── Spinner ─────────────────────────────────────── */
+    .stSpinner > div > div {
+        border-top-color: var(--accent-copper) !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -267,41 +359,41 @@ st.markdown("""
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 CHART_COLORS = {
-    "gold": "#D4A76A",
-    "cyan": "#6BA3BE",
-    "emerald": "#7AB87A",
-    "rose": "#C75B5B",
-    "purple": "#B08FC7",
-    "orange": "#D4956A",
-    "slate": "#636366",
-    "btc": "#F7931A",
+    "gold": "#9A7B4F",
+    "cyan": "#2E7D96",
+    "emerald": "#2D8F4E",
+    "rose": "#B83B36",
+    "purple": "#7E5EA8",
+    "orange": "#C07D3A",
+    "slate": "#8C8880",
+    "btc": "#E8860F",
 }
 
-EXPIRY_COLORS = ["#6BA3BE", "#7AB87A", "#D4A76A", "#B08FC7", "#D4956A", "#C75B5B"]
+EXPIRY_COLORS = ["#2E7D96", "#2D8F4E", "#9A7B4F", "#7E5EA8", "#C07D3A", "#B83B36"]
 
 
 def chart_layout(**overrides) -> dict:
-    """Base Plotly layout — warm dark, Apple-esque."""
+    """Base Plotly layout — light, Apple-esque."""
     base = dict(
-        paper_bgcolor="#0C0B09",
-        plot_bgcolor="#141310",
-        font=dict(family="Azeret Mono, monospace", color="#A09A90", size=11),
+        paper_bgcolor="#FFFFFF",
+        plot_bgcolor="#FAFAF8",
+        font=dict(family="Azeret Mono, monospace", color="#5C5850", size=11),
         margin=dict(l=12, r=12, t=44, b=12),
         xaxis=dict(
-            gridcolor="#252320", zerolinecolor="#252320",
+            gridcolor="#ECEAE6", zerolinecolor="#E2E0DB",
             tickfont=dict(size=10),
         ),
         yaxis=dict(
-            gridcolor="#252320", zerolinecolor="#252320",
+            gridcolor="#ECEAE6", zerolinecolor="#E2E0DB",
             tickfont=dict(size=10),
         ),
         legend=dict(
-            bgcolor="rgba(0,0,0,0)", bordercolor="rgba(0,0,0,0)",
+            bgcolor="rgba(255,255,255,0)", bordercolor="rgba(0,0,0,0)",
             font=dict(size=10),
         ),
         hoverlabel=dict(
-            bgcolor="#1A1916", bordercolor="#252320",
-            font=dict(family="Azeret Mono", size=11),
+            bgcolor="#FFFFFF", bordercolor="#E2E0DB",
+            font=dict(family="Azeret Mono", size=11, color="#1A1814"),
         ),
     )
     base.update(overrides)
@@ -369,22 +461,35 @@ def fetch_all_data():
     errors = []
 
     try:
-        spot = spot_client.get_btc_spot()
+        iv_data = deribit_client.get_iv_summary()
     except Exception as e:
-        spot = {"price": None, "error": str(e)}
-        errors.append(f"Spot: {e}")
+        iv_data = {"dvol": None, "vol_surface": {}, "error": str(e)}
+        errors.append(f"IV: {e}")
+
+    # Use Deribit underlying as primary spot — real-time index price
+    # CoinGecko free tier can be delayed or rate limited
+    deribit_px = (iv_data.get("vol_surface") or {}).get("underlying")
+    try:
+        cg_spot = spot_client.get_btc_spot()
+    except Exception:
+        cg_spot = {"price": None}
+
+    if deribit_px and deribit_px > 0:
+        spot = {"price": deribit_px, "source": "deribit"}
+        # include CoinGecko 24h change if available
+        if cg_spot.get("change_24h_pct"):
+            spot["change_24h_pct"] = cg_spot["change_24h_pct"]
+    elif cg_spot.get("price"):
+        spot = cg_spot
+    else:
+        spot = {"price": None}
+        errors.append("No spot price available from Deribit or CoinGecko")
 
     try:
         price_history = spot_client.get_btc_price_history(hours=24)
     except Exception as e:
         price_history = pd.DataFrame()
         errors.append(f"Price history: {e}")
-
-    try:
-        iv_data = deribit_client.get_iv_summary()
-    except Exception as e:
-        iv_data = {"dvol": None, "vol_surface": {}, "error": str(e)}
-        errors.append(f"IV: {e}")
 
     rv_data = vol_model.compute_realized_vol(price_history)
 
@@ -520,7 +625,7 @@ def render_vol_smile(vol_surface, spot):
         title=dict(text="Volatility Smile", font=dict(size=14)),
         xaxis_title="Strike ($)", yaxis_title="Implied Volatility (%)",
         height=380,
-        xaxis=dict(tickformat="$,.0f", gridcolor="#1E2330"),
+        xaxis=dict(tickformat="$,.0f", gridcolor="#ECEAE6"),
     ))
     st.plotly_chart(fig, use_container_width=True)
 
@@ -552,7 +657,7 @@ def render_term_structure(vol_surface, spot):
         mode="lines+markers",
         line=dict(color=CHART_COLORS["gold"], width=2.5),
         marker=dict(size=7, color=CHART_COLORS["gold"],
-                    line=dict(width=1.5, color="#0B0D11")),
+                    line=dict(width=1.5, color="#FFFFFF")),
         hovertemplate="Tenor: %{x:.0f}h<br>ATM IV: %{y:.1f}%<extra></extra>",
     ))
 
@@ -606,8 +711,8 @@ def render_vol_heatmap(vol_surface, spot):
         x=tenor_labels,
         y=[f"${s/1000:.0f}k" for s in strikes],
         colorscale=[
-            [0, "#0C0B09"], [0.25, "#2A3540"], [0.5, "#6BA3BE"],
-            [0.75, "#D4A76A"], [1, "#C75B5B"]
+            [0, "#F0EFEC"], [0.25, "#C8DDE6"], [0.5, "#6BA3BE"],
+            [0.75, "#C9A87C"], [1, "#B83B36"]
         ],
         colorbar=dict(title=dict(text="IV %", font=dict(size=10))),
         hovertemplate="Strike: %{y}<br>Expiry: %{x}<br>IV: %{z:.1f}%<extra></extra>",
@@ -654,14 +759,14 @@ def render_edge_scatter(analyses, spot):
             y=[p["edge"] for p in subset],
             mode="markers",
             name=name,
-            marker=dict(color=color, size=9, line=dict(width=1, color="#0B0D11")),
+            marker=dict(color=color, size=9, line=dict(width=1, color="#FFFFFF")),
             text=[p["label"] for p in subset],
             hovertemplate="%{text}<br>Distance: %{x:+.1f}%<br>Edge: %{y:+.1f}%<extra></extra>",
         ))
 
     # reference lines
-    fig.add_hline(y=0, line_color="#1E2330", line_width=1)
-    fig.add_vline(x=0, line_color="#1E2330", line_width=1)
+    fig.add_hline(y=0, line_color="#E2E0DB", line_width=1)
+    fig.add_vline(x=0, line_color="#E2E0DB", line_width=1)
     fig.add_hline(y=5, line_dash="dot", line_color=CHART_COLORS["emerald"], opacity=0.3)
     fig.add_hline(y=-5, line_dash="dot", line_color=CHART_COLORS["rose"], opacity=0.3)
 
@@ -688,119 +793,7 @@ def render_edge_scatter(analyses, spot):
     st.plotly_chart(fig, use_container_width=True)
 
 
-def render_prob_curves(analyses, spot):
-    """Market probability vs Model probability across all thresholds."""
-    pts = []
-    for a in analyses:
-        p = a["params"]
-        fv = a["fair_value"]
-        if (p.get("market_type") == "threshold" and p.get("market_prob") is not None
-                and fv.get("model_prob") is not None):
-            pts.append({
-                "threshold": p["threshold"],
-                "market": p["market_prob"],
-                "model": fv["model_prob"],
-                "label": fmt_label(p),
-            })
 
-    if len(pts) < 3:
-        return
-
-    pts.sort(key=lambda x: x["threshold"])
-
-    fig = go.Figure()
-
-    fig.add_trace(go.Scatter(
-        x=[p["threshold"] for p in pts],
-        y=[p["market"] for p in pts],
-        mode="lines+markers",
-        name="Market",
-        line=dict(color=CHART_COLORS["cyan"], width=2),
-        marker=dict(size=5),
-    ))
-    fig.add_trace(go.Scatter(
-        x=[p["threshold"] for p in pts],
-        y=[p["model"] for p in pts],
-        mode="lines+markers",
-        name="Model",
-        line=dict(color=CHART_COLORS["gold"], width=2),
-        marker=dict(size=5),
-    ))
-
-    # shade the edge area
-    fig.add_trace(go.Scatter(
-        x=[p["threshold"] for p in pts] + [p["threshold"] for p in pts][::-1],
-        y=[p["market"] for p in pts] + [p["model"] for p in pts][::-1],
-        fill="toself",
-        fillcolor="rgba(232, 185, 49, 0.06)",
-        line=dict(width=0),
-        showlegend=False,
-        hoverinfo="skip",
-    ))
-
-    fig.add_vline(
-        x=spot, line_dash="dash", line_color=CHART_COLORS["btc"], line_width=1.5,
-        annotation_text="Spot", annotation_position="top",
-        annotation_font=dict(color=CHART_COLORS["btc"], size=10),
-    )
-
-    fig.update_layout(**chart_layout(
-        title=dict(text="Market vs Model Probability", font=dict(size=14)),
-        xaxis_title="Threshold ($)", yaxis_title="Probability",
-        yaxis_tickformat=".0%",
-        xaxis=dict(tickformat="$,.0f", gridcolor="#1E2330"),
-        height=380,
-    ))
-    st.plotly_chart(fig, use_container_width=True)
-
-
-def render_edge_bars(analyses):
-    """Horizontal bar chart of edge by market."""
-    edge_data = []
-    for a in analyses:
-        edge = a["signal"]["raw_edge"]
-        if edge is not None and a["params"]["market_prob"] is not None:
-            edge_data.append({
-                "label": fmt_label(a["params"])[:28],
-                "edge": edge,
-                "signal": a["signal"]["signal"],
-            })
-
-    if not edge_data:
-        return
-
-    edge_data.sort(key=lambda x: x["edge"])
-    colors = [
-        CHART_COLORS["emerald"] if d["signal"] == "BUY YES"
-        else CHART_COLORS["rose"] if d["signal"] == "BUY NO"
-        else CHART_COLORS["slate"]
-        for d in edge_data
-    ]
-
-    fig = go.Figure(go.Bar(
-        x=[d["edge"] for d in edge_data],
-        y=[d["label"] for d in edge_data],
-        orientation="h",
-        marker_color=colors,
-        text=[f"{d['edge']:+.1%}" for d in edge_data],
-        textposition="outside",
-        textfont=dict(size=10, family="IBM Plex Mono"),
-    ))
-
-    thr = config.MIN_EDGE_THRESHOLD
-    fig.add_vline(x=thr, line_dash="dot", line_color=CHART_COLORS["emerald"], opacity=0.3)
-    fig.add_vline(x=-thr, line_dash="dot", line_color=CHART_COLORS["rose"], opacity=0.3)
-    fig.add_vline(x=0, line_color="#1E2330")
-
-    fig.update_layout(**chart_layout(
-        title=dict(text="Edge Distribution", font=dict(size=14)),
-        height=max(len(edge_data) * 30 + 80, 220),
-        xaxis_title="Edge (Model − Market)",
-        xaxis_tickformat=".0%",
-        yaxis=dict(autorange="reversed"),
-        margin=dict(l=12, r=60, t=44, b=12),
-    ))
-    st.plotly_chart(fig, use_container_width=True)
 
 
 def render_price_chart(price_history, spot=None, threshold=None):
@@ -832,7 +825,7 @@ def render_price_chart(price_history, spot=None, threshold=None):
     fig.update_layout(**chart_layout(
         title=dict(text="BTC — 24h", font=dict(size=14)),
         height=260,
-        yaxis=dict(tickformat="$,.0f", gridcolor="#252320",
+        yaxis=dict(tickformat="$,.0f", gridcolor="#ECEAE6",
                    range=[y_min - y_pad, y_max + y_pad]),
     ))
     st.plotly_chart(fig, use_container_width=True)
@@ -870,7 +863,7 @@ def render_prob_comparison_detail(params, fv, sig):
         marker_color=colors,
         text=[f"{v:.1%}" for v in vals],
         textposition="outside",
-        textfont=dict(size=12, family="IBM Plex Mono"),
+        textfont=dict(size=12, family="Azeret Mono"),
     ))
 
     if mkt is not None and mdl is not None:
@@ -880,8 +873,8 @@ def render_prob_comparison_detail(params, fv, sig):
             text=f"Edge: {edge:+.1%}",
             xref="paper", yref="paper", x=0.95, y=0.95,
             showarrow=False,
-            font=dict(size=13, color=edge_color, family="IBM Plex Mono"),
-            bgcolor="#0B0D11", bordercolor=edge_color,
+            font=dict(size=13, color=edge_color, family="Azeret Mono"),
+            bgcolor="#FFFFFF", bordercolor=edge_color,
             borderwidth=1, borderpad=6,
         )
 
@@ -945,13 +938,11 @@ def render_trading_desk(data):
         return
 
     # ── Inline filters ─────────────────────────────────────
-    f1, f2, f3 = st.columns(3)
+    f1, f2 = st.columns(2)
     with f1:
         show_type = st.radio("Market Type", ["All", "Threshold", "Range"], horizontal=True)
     with f2:
         show_liq = st.radio("Liquidity", ["All", "Two-Sided"], horizontal=True)
-    with f3:
-        n_show = st.slider("Show", 5, 30, 15)
 
     # filter
     filtered = ranked
@@ -962,9 +953,9 @@ def render_trading_desk(data):
     if show_liq == "Two-Sided":
         filtered = [r for r in filtered if r["params"].get("liquidity") == "two_sided"]
 
-    # analyze
+    # analyze all (up to 30)
     analyses = []
-    for entry in filtered[:n_show]:
+    for entry in filtered[:30]:
         try:
             analyses.append(analyze_market(entry, spot_price, iv, rv, vol_surface))
         except Exception:
@@ -980,14 +971,162 @@ def render_trading_desk(data):
         if overview:
             st.markdown(f'<div class="synthesis-card">{overview}</div>', unsafe_allow_html=True)
 
-    # ── Market table ────────────────────────────────────────
+    # ── Hero chart: Options Model vs Prediction Market ────
+    # build threshold points for the probability curves
+    threshold_analyses = [
+        a for a in analyses
+        if a["params"].get("market_type") == "threshold"
+        and a["params"].get("market_prob") is not None
+        and a["fair_value"].get("model_prob") is not None
+    ]
+    threshold_analyses.sort(key=lambda a: a["params"]["threshold"])
+
+    if len(threshold_analyses) >= 2 and spot_price:
+        _render_hero_chart(threshold_analyses, spot_price)
+
+    # ── Contract selector ──────────────────────────────────
+    contract_labels = [
+        f"{fmt_label(a['params'])} · {fmt_expiry(a['hours_to_expiry'])} · "
+        f"Edge {a['signal']['raw_edge']:+.1%}" if a["signal"]["raw_edge"] is not None
+        else f"{fmt_label(a['params'])} · {fmt_expiry(a['hours_to_expiry'])}"
+        for a in analyses
+    ]
+
+    st.markdown('<p class="section-title">Select Contract</p>', unsafe_allow_html=True)
+    sel_idx = st.selectbox(
+        "Contract", range(len(contract_labels)),
+        format_func=lambda i: contract_labels[i],
+        label_visibility="collapsed",
+    )
+
+    selected = analyses[sel_idx]
+    _render_contract_detail(selected)
+
+    # ── Edge scatter in expander ───────────────────────────
+    if spot_price and len(threshold_analyses) >= 3:
+        with st.expander("Edge vs Distance from Spot"):
+            render_edge_scatter(analyses, spot_price)
+
+    # ── Full table in expander ─────────────────────────────
+    with st.expander("All Contracts"):
+        _render_contract_table(analyses)
+
+
+def _render_hero_chart(threshold_analyses, spot):
+    """Full-width probability curve — the core visualization."""
+    pts = threshold_analyses
+
+    fig = go.Figure()
+
+    # Kalshi (prediction market)
+    fig.add_trace(go.Scatter(
+        x=[a["params"]["threshold"] for a in pts],
+        y=[a["params"]["market_prob"] for a in pts],
+        mode="lines+markers",
+        name="Kalshi (Prediction Mkt)",
+        line=dict(color=CHART_COLORS["cyan"], width=2.5),
+        marker=dict(size=7),
+        hovertemplate="$%{x:,.0f}<br>Kalshi: %{y:.1%}<extra></extra>",
+    ))
+
+    # Options model
+    fig.add_trace(go.Scatter(
+        x=[a["params"]["threshold"] for a in pts],
+        y=[a["fair_value"]["model_prob"] for a in pts],
+        mode="lines+markers",
+        name="Options Model",
+        line=dict(color=CHART_COLORS["gold"], width=2.5),
+        marker=dict(size=7),
+        hovertemplate="$%{x:,.0f}<br>Model: %{y:.1%}<extra></extra>",
+    ))
+
+    # shade the edge between curves
+    fig.add_trace(go.Scatter(
+        x=[a["params"]["threshold"] for a in pts] + [a["params"]["threshold"] for a in pts][::-1],
+        y=[a["params"]["market_prob"] for a in pts] + [a["fair_value"]["model_prob"] for a in pts][::-1],
+        fill="toself",
+        fillcolor="rgba(154, 123, 79, 0.07)",
+        line=dict(width=0),
+        showlegend=False,
+        hoverinfo="skip",
+    ))
+
+    # spot price reference
+    fig.add_vline(
+        x=spot, line_dash="dash", line_color=CHART_COLORS["btc"], line_width=1.5,
+        annotation_text="BTC Spot", annotation_position="top",
+        annotation_font=dict(color=CHART_COLORS["btc"], size=10),
+    )
+
+    fig.update_layout(**chart_layout(
+        title=dict(
+            text="Options Market vs Prediction Market",
+            font=dict(size=16, family="Playfair Display, serif"),
+        ),
+        xaxis_title="BTC Threshold ($)",
+        yaxis_title="P(BTC Above Threshold)",
+        yaxis_tickformat=".0%",
+        xaxis=dict(tickformat="$,.0f", gridcolor="#ECEAE6"),
+        height=440,
+        legend=dict(
+            orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5,
+            bgcolor="rgba(255,255,255,0)", bordercolor="rgba(0,0,0,0)",
+            font=dict(size=11),
+        ),
+    ))
+    st.plotly_chart(fig, use_container_width=True)
+
+    # edge callout: largest absolute edge
+    max_edge_a = max(pts, key=lambda a: abs(a["signal"].get("raw_edge") or 0))
+    max_edge = max_edge_a["signal"].get("raw_edge")
+    if max_edge is not None:
+        label = fmt_label(max_edge_a["params"])
+        direction = "underpriced" if max_edge > 0 else "overpriced"
+        st.caption(
+            f"Largest divergence: **{label}** — model sees {abs(max_edge):.1%} edge "
+            f"({direction} by Kalshi). The shaded area shows where the options-implied "
+            f"probability differs from the prediction market."
+        )
+
+
+def _render_contract_detail(analysis):
+    """Compact detail card for the selected contract."""
+    p = analysis["params"]
+    fv = analysis["fair_value"]
+    sig = analysis["signal"]
+    conf = analysis["confidence"]
+
+    # metrics row
+    m1, m2, m3, m4, m5, m6 = st.columns(6)
+    with m1:
+        st.metric("Market", fmt_pct(p["market_prob"]))
+    with m2:
+        st.metric("Model", fmt_pct(fv.get("model_prob")))
+    with m3:
+        st.metric("Edge", f"{sig['raw_edge']:+.1%}" if sig["raw_edge"] is not None else "—")
+    with m4:
+        matched_iv = fv.get("strike_matched_iv")
+        st.metric("Strike IV", f"{matched_iv:.1f}%" if matched_iv else "—")
+    with m5:
+        st.metric("Signal", sig["signal"])
+    with m6:
+        st.metric("Confidence", conf["confidence_label"])
+
+    # explanation
+    st.markdown(f'<div class="analysis-box">{analysis["explanation"]}</div>', unsafe_allow_html=True)
+
+    if conf["concerns"]:
+        st.caption(f"Concerns: {', '.join(conf['concerns'])}")
+
+
+def _render_contract_table(analyses):
+    """Compact table of all analyzed contracts."""
     table_rows = []
     for a in analyses:
         p = a["params"]
         fv = a["fair_value"]
         sig = a["signal"]
         conf = a["confidence"]
-
         table_rows.append({
             "Contract": fmt_label(p),
             "Expiry": fmt_expiry(a["hours_to_expiry"]),
@@ -1002,64 +1141,17 @@ def render_trading_desk(data):
 
     def _style_sig(val):
         if val == "BUY YES":
-            return "background-color: rgba(122,184,122,0.1); color: #7AB87A; font-weight: 600"
+            return "background-color: rgba(45,143,78,0.08); color: #2D8F4E; font-weight: 600"
         elif val == "BUY NO":
-            return "background-color: rgba(199,91,91,0.1); color: #C75B5B; font-weight: 600"
-        return "color: #636366"
+            return "background-color: rgba(184,59,54,0.08); color: #B83B36; font-weight: 600"
+        return "color: #8C8880"
 
     def _style_conf(val):
-        return {"HIGH": "color:#7AB87A", "MEDIUM": "color:#C9A87C", "LOW": "color:#C75B5B"}.get(val, "")
+        return {"HIGH": "color:#2D8F4E", "MEDIUM": "color:#9A7B4F", "LOW": "color:#B83B36"}.get(val, "")
 
     styled = df.style.map(_style_sig, subset=["Signal"]).map(_style_conf, subset=["Conf"])
     st.dataframe(styled, use_container_width=True, hide_index=True,
                  height=min(len(df) * 36 + 42, 520))
-
-    # ── Two charts: the ones that matter ──────────────────
-    c1, c2 = st.columns(2)
-    with c1:
-        if spot_price:
-            render_prob_curves(analyses, spot_price)
-    with c2:
-        if spot_price:
-            render_edge_scatter(analyses, spot_price)
-
-    # ── Top actionable trades ─────────────────────────────
-    actionable = [a for a in analyses if a["signal"]["signal"] != "NO TRADE"]
-    show_list = actionable if actionable else analyses[:3]
-
-    if show_list:
-        st.markdown('<p class="section-title">Trade Detail</p>', unsafe_allow_html=True)
-        for i, a in enumerate(show_list[:3]):
-            _render_trade_card(a, expanded=(i == 0))
-
-
-def _render_trade_card(analysis, expanded=False):
-    p = analysis["params"]
-    sig = analysis["signal"]
-    fv = analysis["fair_value"]
-    conf = analysis["confidence"]
-    label = fmt_label(p)
-
-    icon = {"BUY YES": "▲", "BUY NO": "▼", "NO TRADE": "—"}.get(sig["signal"], "—")
-    header = f"{icon} {label} — {sig['signal']} ({fmt_expiry(analysis['hours_to_expiry'])})"
-
-    with st.expander(header, expanded=expanded):
-        m1, m2, m3, m4, m5 = st.columns(5)
-        with m1:
-            st.metric("Market", fmt_pct(p["market_prob"]))
-        with m2:
-            st.metric("Model", fmt_pct(fv.get("model_prob")))
-        with m3:
-            st.metric("Edge", f"{sig['raw_edge']:+.1%}" if sig["raw_edge"] is not None else "—")
-        with m4:
-            st.metric("Adj Edge", f"{sig['adjusted_edge']:+.1%}" if sig["adjusted_edge"] is not None else "—")
-        with m5:
-            st.metric("Conf", conf["confidence_label"])
-
-        st.markdown(f'<div class="analysis-box">{analysis["explanation"]}</div>', unsafe_allow_html=True)
-
-        if conf["concerns"]:
-            st.caption(f"Concerns: {', '.join(conf['concerns'])}")
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1333,12 +1425,35 @@ when unconfigured.
 # Header
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+def _estimate_market_forward(ranked_markets) -> float | None:
+    """Find the Kalshi market's implied BTC forward price (where prob ≈ 50%)."""
+    pts = []
+    for entry in ranked_markets:
+        p = entry.get("params", {})
+        if (p.get("market_type") == "threshold" and p.get("direction") == "above"
+                and p.get("market_prob") is not None and p.get("threshold")):
+            pts.append((p["threshold"], p["market_prob"]))
+    if len(pts) < 3:
+        return None
+    pts.sort(key=lambda x: x[0])
+    # find where probability crosses 50% (linear interpolation)
+    for i in range(len(pts) - 1):
+        t1, p1 = pts[i]
+        t2, p2 = pts[i + 1]
+        if (p1 >= 0.5 and p2 <= 0.5) or (p1 <= 0.5 and p2 >= 0.5):
+            if abs(p1 - p2) < 0.001:
+                return (t1 + t2) / 2
+            w = (0.5 - p2) / (p1 - p2)
+            return t1 * w + t2 * (1 - w)
+    return None
+
+
 def render_header(data):
     spot = data["spot"]
     iv_data = data["iv_data"]
     rv_data = data["rv_data"]
 
-    c1, c2, c3, c4 = st.columns(4)
+    c1, c2, c3, c4, c5 = st.columns(5)
 
     with c1:
         if spot.get("price"):
@@ -1349,14 +1464,23 @@ def render_header(data):
             st.metric("BTC Spot", "—")
 
     with c2:
+        fwd = _estimate_market_forward(data["ranked_markets"])
+        spot_px = spot.get("price")
+        if fwd and spot_px:
+            drift_pct = (fwd - spot_px) / spot_px * 100
+            st.metric("Kalshi Forward", f"${fwd:,.0f}", f"{drift_pct:+.1f}%")
+        else:
+            st.metric("Kalshi Forward", "—")
+
+    with c3:
         dvol = iv_data.get("dvol")
         st.metric("DVOL (30d)", fmt_vol(dvol))
 
-    with c3:
+    with c4:
         rv = rv_data.get("realized_vol")
         st.metric("Realized Vol", fmt_vol(rv))
 
-    with c4:
+    with c5:
         dvol = iv_data.get("dvol")
         rv = rv_data.get("realized_vol")
         if dvol and rv and rv > 0:
@@ -1379,7 +1503,7 @@ def main():
         '<span class="gold">₿</span> BTC Vol Desk</h1>',
         unsafe_allow_html=True,
     )
-    st.caption("Live Kalshi market analysis · Deribit vol surface · Strike-matched IV · Fat-tail model")
+    st.caption("Live Kalshi market analysis · Deribit vol surface · Strike-matched IV")
 
     with st.spinner("Loading live data..."):
         data = fetch_all_data()

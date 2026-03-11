@@ -1284,7 +1284,8 @@ def render_deep_dive(data):
         exp = fmt_expiry(r["hours_to_expiry"])
         edge = a["signal"].get("raw_edge")
         edge_str = f" | Δ {edge:+.1%}" if edge is not None else ""
-        labels.append(f"{label} ({exp}{edge_str})")
+        liq_warn = " ⚠" if p.get("liquidity") != "two_sided" else ""
+        labels.append(f"{label} ({exp}{edge_str}){liq_warn}")
 
     idx = st.selectbox("Select market:", range(len(labels)), format_func=lambda i: labels[i])
     entry, analysis, _ = pre_analyzed[idx]

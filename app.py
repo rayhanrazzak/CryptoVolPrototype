@@ -1005,17 +1005,17 @@ def render_trading_desk(data):
         threshold_analyses = []
 
     if len(threshold_analyses) >= 2 and spot_price:
-        _render_hero_chart(threshold_analyses, spot_price)
+        chart_forward = _estimate_market_forward(threshold_analyses)
+        _render_hero_chart(threshold_analyses, spot_price, forward=chart_forward)
 
         # LLM analysis of the chart data (cached in session to avoid repeat API calls)
         if llm_explainer.is_available():
             cache_key = f"chart_llm_{sel_exp}" if 'sel_exp' in dir() else "chart_llm"
             if cache_key not in st.session_state:
-                forward = _estimate_market_forward(threshold_analyses)
                 st.session_state[cache_key] = llm_explainer.synthesize_chart_analysis(
                     threshold_analyses, spot_price,
                     data["iv_data"], data["rv_data"],
-                    forward=forward,
+                    forward=chart_forward,
                 )
             chart_note = st.session_state[cache_key]
             if chart_note:
@@ -1049,7 +1049,7 @@ def render_trading_desk(data):
         _render_contract_table(analyses)
 
 
-def _render_hero_chart(threshold_analyses, spot):
+def _render_hero_chart(threshold_analyses, spot, forward=None):
     """Full-width probability curve — the core visualization."""
     pts = threshold_analyses
 
@@ -1088,10 +1088,12 @@ def _render_hero_chart(threshold_analyses, spot):
         hoverinfo="skip",
     ))
 
-    # spot price reference
+    # Kalshi forward reference (what the model is centered on)
+    ref_price = forward if forward else spot
+    ref_label = "Kalshi Forward" if forward else "BTC Spot"
     fig.add_vline(
-        x=spot, line_dash="dash", line_color=CHART_COLORS["btc"], line_width=1.5,
-        annotation_text="BTC Spot", annotation_position="top",
+        x=ref_price, line_dash="dash", line_color=CHART_COLORS["btc"], line_width=1.5,
+        annotation_text=ref_label, annotation_position="top",
         annotation_font=dict(color=CHART_COLORS["btc"], size=10),
     )
 

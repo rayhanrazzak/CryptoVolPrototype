@@ -943,14 +943,37 @@ def render_trading_desk(data):
     # only threshold markets — range contracts aren't reliably available
     filtered = [r for r in ranked if r["params"].get("market_type") == "threshold"]
 
-    # compute Kalshi forward to center the model on market's expected price
-    kalshi_forward = _estimate_market_forward(filtered)
+    # group by expiry to compute per-expiry forwards
+    _expiry_groups = {}
+    for entry in filtered:
+        h = entry["hours_to_expiry"]
+        matched = False
+        for bucket_h in _expiry_groups:
+            if abs(h - bucket_h) < 1.0:
+                _expiry_groups[bucket_h].append(entry)
+                matched = True
+                break
+        if not matched:
+            _expiry_groups[h] = [entry]
+
+    # compute forward per expiry bucket
+    _forwards = {}
+    for bucket_h, entries in _expiry_groups.items():
+        fwd = _estimate_market_forward(entries)
+        _forwards[bucket_h] = fwd
+
+    def _get_forward(hours):
+        for bucket_h, fwd in _forwards.items():
+            if abs(hours - bucket_h) < 1.0:
+                return fwd
+        return None
 
     # analyze all available
     analyses = []
     for entry in filtered:
         try:
-            analyses.append(analyze_market(entry, spot_price, iv, rv, vol_surface, forward=kalshi_forward))
+            fwd = _get_forward(entry["hours_to_expiry"])
+            analyses.append(analyze_market(entry, spot_price, iv, rv, vol_surface, forward=fwd))
         except Exception:
             continue
 

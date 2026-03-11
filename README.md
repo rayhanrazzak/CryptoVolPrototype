@@ -1,30 +1,32 @@
 # BTC Volatility Market Analyzer
 
-A live prototype that compares Kalshi BTC prediction market probabilities against a volatility-based fair value model. Uses strike-matched implied volatility from Deribit's options chain and realized volatility from recent BTC price action to identify potential mispricings in short-dated BTC event markets.
+A live prototype that compares Kalshi BTC prediction market probabilities against a volatility-based fair value model. Uses strike-matched implied volatility from Deribit's options chain and realized volatility from recent BTC price action to identify mispricings in short-dated BTC event markets.
 
 ## Key Features
 
 - **Live Kalshi market discovery** -- dynamically finds KXBTCD (threshold) and KXBTC (range) BTC markets, ranked by expiry, liquidity, and interpretability
 - **Strike-matched implied volatility** -- pulls ~900 BTC options from Deribit and matches IV by strike and tenor, capturing skew and term structure
-- **Realized volatility** -- computes 24-hour annualized vol from recent BTC spot returns via CoinGecko
+- **Realized volatility** -- computes 24-hour annualized vol from recent BTC spot returns
 - **IV-RV regime blending** -- blends implied and realized vol based on their ratio as a vol regime signal
-- **Fat-tail adjustment** -- Student-t probability (df=5) instead of normal CDF for more realistic BTC tail risk
+- **Market-implied forward** -- estimates the prediction market's expected future BTC price by interpolating the Kalshi probability curve
 - **Liquidity-aware pricing** -- flags one-sided quotes and applies confidence penalties for illiquid markets
-- **Vol surface analytics** -- interactive smile, term structure, heatmap, and skew metrics
+- **Vol surface analytics** -- interactive smile, term structure, and skew metrics
 - **Mock paper-trade signals** -- BUY YES / BUY NO / NO TRADE based on edge, spread cost, and confidence
+- **API response caching** -- disk-based cache with TTL to handle rate limits and support offline demos
 - **Optional trade synthesis** -- concise trade notes via Google Gemini (free tier) when configured, deterministic fallback otherwise
 
 ## Architecture
 
 ```
 app.py                  # Streamlit dashboard (4 tabs)
-config.py               # Model parameters, blending weights, tail distribution settings
+config.py               # Model parameters, blending weights, distribution settings
 data/
+  cache.py              # Disk-based API response caching with TTL
   kalshi_client.py      # Kalshi market discovery, pricing, and liquidity classification
   deribit_client.py     # Vol surface builder from full options chain + DVOL index
-  spot_client.py        # BTC spot price and recent price history via CoinGecko
+  spot_client.py        # BTC spot price and recent price history
 models/
-  vol_model.py          # Strike-matched IV lookup, Student-t probability, IV-RV blending
+  vol_model.py          # Strike-matched IV lookup, probability estimation, IV-RV blending
   signal_engine.py      # Edge-based signal generation with liquidity-aware confidence
   explainer.py          # Deterministic natural-language explanation engine
   llm_explainer.py      # Optional Gemini-powered trade synthesis
@@ -64,8 +66,8 @@ The dashboard opens at `http://localhost:8501`.
 
 ## Dashboard Tabs
 
-1. **Trading Desk** -- ranked market opportunities, edge distribution, probability curves, BTC price with threshold overlays, actionable trade detail
-2. **Vol Analytics** -- interactive volatility smile showing put skew, ATM term structure, vol surface heatmap, skew metrics by tenor
+1. **Trading Desk** -- hero chart comparing options-implied vs prediction market probabilities, contract selector with edge analysis, signal detail
+2. **Vol Analytics** -- interactive volatility smile showing put skew, ATM term structure, skew metrics by tenor
 3. **Deep Dive** -- single-market analysis with probability comparison, vol breakdown, regime classification, and optional trade synthesis
 4. **Methodology** -- full model documentation
 
@@ -81,9 +83,9 @@ Falls back to the DVOL index (30-day IV) when no close match exists.
 
 For threshold markets ("BTC above $K"), the model estimates:
 
-- **P(S_T > K)** using a Student-t CDF (df=5) applied to the standard d2 statistic
-- Zero drift assumption (reasonable for short horizons)
-- The t-distribution adds probability mass to the tails vs. normal, which matters for BTC
+- **P(S_T > K)** using the standard d2 statistic under a log-normal framework
+- Zero drift assumption -- the "Kalshi Forward" metric reveals any directional disagreement
+- Gaussian CDF chosen over Student-t after calibration against live Kalshi data showed better fit
 
 For range markets, the probability of landing in [A, B) is computed as the difference of two threshold probabilities.
 
@@ -103,9 +105,9 @@ When both IV and RV are available, they are blended based on their ratio:
 
 ## Assumptions and Limitations
 
-- **Student-t tails** improve on log-normal but df=5 is still an approximation of BTC's true tail behavior
+- **Zero drift**: the model centers on current spot. Prediction markets may embed directional views (visible via the Kalshi Forward metric)
 - **Constant vol per horizon**: the vol surface helps, but within-horizon vol clustering is not modeled
-- **Zero drift**: ignores momentum, reasonable for short horizons
+- **Risk-neutral vs physical**: options IV contains a risk premium, so model probabilities may overstate tail event likelihood
 - **No jump diffusion**: macro events, ETF flows, and regulatory news can cause discrete gaps
 - **No microstructure**: order flow, slippage, and market impact are not modeled
 - **Prototype only**: signals are illustrative and not trading advice
@@ -113,9 +115,9 @@ When both IV and RV are available, they are blended based on their ratio:
 ## Demo Flow
 
 1. Open the dashboard (`streamlit run app.py`)
-2. **Trading Desk** shows ranked BTC markets with edge, signal, and confidence
-3. Use sidebar filters to focus on threshold vs range markets, two-sided liquidity
-4. Charts show edge distribution, market vs model probability curves, and BTC price with threshold overlays
-5. **Vol Analytics** reveals the options skew, term structure, and full surface heatmap
-6. **Deep Dive** into a specific contract for vol breakdown, regime analysis, and optional trade synthesis
+2. **Header** shows BTC spot, Kalshi forward price, DVOL, realized vol, and regime
+3. **Trading Desk** hero chart compares options model vs prediction market across all thresholds
+4. Select a contract to see edge breakdown, strike IV, signal, and explanation
+5. **Vol Analytics** reveals the options skew, term structure, and skew metrics
+6. **Deep Dive** into a specific contract for full vol breakdown and optional trade synthesis
 7. **Methodology** tab documents the full approach

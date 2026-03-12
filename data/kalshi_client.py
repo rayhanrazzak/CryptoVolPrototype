@@ -16,6 +16,28 @@ import config
 from data.cache import get_cached, set_cached
 
 
+def _int_or_none(val) -> Optional[int]:
+    if val is None:
+        return None
+    try:
+        return int(float(val))
+    except (ValueError, TypeError):
+        return None
+
+
+def _to_cents(market: dict, field: str) -> Optional[float]:
+    """Read a price field, handling both dollar (v2) and legacy cent formats."""
+    # v2 API: yes_bid_dollars, yes_ask_dollars, last_price_dollars (0.00–1.00)
+    dollar_val = market.get(f"{field}_dollars")
+    if dollar_val is not None:
+        return round(float(dollar_val) * 100, 2)
+    # legacy: yes_bid, yes_ask, last_price (0–100 cents)
+    legacy = market.get(field)
+    if legacy is not None:
+        return float(legacy)
+    return None
+
+
 def _get_headers() -> dict:
     headers = {"Accept": "application/json"}
     return headers
@@ -133,15 +155,18 @@ def rank_btc_markets(markets: list[dict]) -> list[dict]:
             elif 0.05 <= prob <= 0.95:
                 score += 2.0
 
-        # volume
-        vol = m.get("volume") or 0
+        # volume — v2 API uses volume_fp
+        vol = m.get("volume") or _int_or_none(m.get("volume_fp")) or 0
         if vol > 0:
             score += min(vol / 200, 3.0)
 
-        # has pricing data
-        if m.get("yes_bid") and m.get("yes_ask"):
+        # has pricing data — check both v2 dollar fields and legacy cent fields
+        has_bid = m.get("yes_bid") or m.get("yes_bid_dollars")
+        has_ask = m.get("yes_ask") or m.get("yes_ask_dollars")
+        has_last = m.get("last_price") or m.get("last_price_dollars")
+        if has_bid and has_ask:
             score += 2.0
-        elif m.get("last_price"):
+        elif has_last:
             score += 1.0
 
         scored.append({
@@ -193,11 +218,11 @@ def extract_market_params(market: dict) -> dict:
             # for range markets, use midpoint as reference
             threshold = (range_low + range_high) / 2
 
-    # pricing — Kalshi uses cents (0-100)
-    # liquidity-aware: only trust the midpoint when both sides are quoted
-    yes_bid = market.get("yes_bid")
-    yes_ask = market.get("yes_ask")
-    last_price = market.get("last_price")
+    # pricing — Kalshi API v2 returns dollar prices (0.00–1.00), convert to cents
+    # for internal consistency; fall back to legacy cent fields if present
+    yes_bid = _to_cents(market, "yes_bid")
+    yes_ask = _to_cents(market, "yes_ask")
+    last_price = _to_cents(market, "last_price")
 
     if yes_bid is not None and yes_ask is not None and yes_bid > 0 and yes_ask > 0:
         market_prob = (yes_bid + yes_ask) / 200.0
@@ -238,6 +263,6 @@ def extract_market_params(market: dict) -> dict:
         "yes_bid": yes_bid,
         "yes_ask": yes_ask,
         "last_price": last_price,
-        "volume": market.get("volume"),
-        "open_interest": market.get("open_interest"),
+        "volume": market.get("volume") or _int_or_none(market.get("volume_fp")),
+        "open_interest": market.get("open_interest") or _int_or_none(market.get("open_interest_fp")),
     }

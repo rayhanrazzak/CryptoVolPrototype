@@ -12,7 +12,7 @@ from plotly.subplots import make_subplots
 from datetime import datetime, timezone
 from collections import defaultdict
 
-from data import kalshi_client, deribit_client, spot_client
+from data import kalshi_client, deribit_client, spot_client, polymarket_client
 from models import vol_model, signal_engine, explainer, llm_explainer
 import config
 
@@ -375,6 +375,7 @@ CHART_COLORS = {
     "orange": "#C07D3A",
     "slate": "#8C8880",
     "btc": "#E8860F",
+    "magenta": "#E05DBF",
 }
 
 EXPIRY_COLORS = ["#2E7D96", "#2D8F4E", "#9A7B4F", "#7E5EA8", "#C07D3A", "#B83B36"]
@@ -508,6 +509,13 @@ def fetch_all_data():
         raw_markets, ranked = [], []
         errors.append(f"Kalshi: {e}")
 
+    try:
+        poly_events = polymarket_client.discover_btc_threshold_events()
+        poly_markets = polymarket_client.parse_markets(poly_events)
+    except Exception as e:
+        poly_markets = []
+        errors.append(f"Polymarket: {e}")
+
     return {
         "spot": spot,
         "price_history": price_history,
@@ -515,6 +523,7 @@ def fetch_all_data():
         "rv_data": rv_data,
         "ranked_markets": ranked,
         "raw_markets": raw_markets,
+        "poly_markets": poly_markets,
         "errors": errors,
         "timestamp": datetime.now(timezone.utc),
     }
@@ -1035,9 +1044,24 @@ def render_trading_desk(data):
     else:
         threshold_analyses = []
 
+    # match Polymarket thresholds to this expiry bucket
+    poly_matched = {}
+    if data.get("poly_markets"):
+        try:
+            poly_matched = polymarket_client.match_to_kalshi(
+                data["poly_markets"], threshold_analyses,
+                vol_model_fn=lambda thresh, hrs, direction: vol_model.compute_fair_value(
+                    spot=spot_price, threshold=thresh, hours_to_expiry=hrs,
+                    direction=direction, implied_vol=iv, realized_vol=rv,
+                    vol_surface=vol_surface,
+                ).get("model_prob"),
+            )
+        except Exception:
+            pass
+
     if len(threshold_analyses) >= 2 and spot_price:
         chart_forward = _estimate_market_forward(threshold_analyses)
-        _render_hero_chart(threshold_analyses, spot_price, forward=chart_forward)
+        _render_hero_chart(threshold_analyses, spot_price, forward=chart_forward, poly_probs=poly_matched)
 
 
 # LLM analysis of the chart data (cached in session to avoid repeat API calls)
@@ -1096,7 +1120,7 @@ def render_trading_desk(data):
         _render_contract_table(analyses)
 
 
-def _render_hero_chart(threshold_analyses, spot, forward=None):
+def _render_hero_chart(threshold_analyses, spot, forward=None, poly_probs=None):
     """Full-width probability curve — the core visualization."""
     pts = threshold_analyses
 
@@ -1123,6 +1147,20 @@ def _render_hero_chart(threshold_analyses, spot, forward=None):
         marker=dict(size=7),
         hovertemplate="$%{x:,.0f}<br>Model: %{y:.1%}<extra></extra>",
     ))
+
+    # Polymarket (time-adjusted)
+    if poly_probs:
+        poly_x = [a["params"]["threshold"] for a in pts if a["params"]["threshold"] in poly_probs]
+        poly_y = [poly_probs[t]["poly_prob_adjusted"] for t in poly_x]
+        if poly_y:
+            fig.add_trace(go.Scatter(
+                x=poly_x, y=poly_y,
+                mode="lines+markers",
+                name="Polymarket (time-adj.)",
+                line=dict(color=CHART_COLORS["magenta"], width=2.5, dash="dot"),
+                marker=dict(size=7),
+                hovertemplate="$%{x:,.0f}<br>Polymarket: %{y:.1%}<extra></extra>",
+            ))
 
     # shade the edge between curves
     fig.add_trace(go.Scatter(

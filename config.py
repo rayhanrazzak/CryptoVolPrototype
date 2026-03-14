@@ -12,6 +12,10 @@ KALSHI_API_BASE = "https://api.elections.kalshi.com/trade-api/v2"
 KALSHI_API_KEY = os.getenv("KALSHI_API_KEY")
 KALSHI_PRIVATE_KEY_PATH = os.getenv("KALSHI_PRIVATE_KEY_PATH")
 
+# Polymarket (public endpoints, no auth needed)
+POLYMARKET_GAMMA_BASE = "https://gamma-api.polymarket.com"
+POLYMARKET_CLOB_BASE = "https://clob.polymarket.com"
+
 # Deribit (public endpoints, no auth needed)
 DERIBIT_API_BASE = "https://www.deribit.com/api/v2"
 

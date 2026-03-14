@@ -1044,12 +1044,13 @@ def render_trading_desk(data):
     else:
         threshold_analyses = []
 
-    # match Polymarket thresholds to this expiry bucket
+    # time-adjust Polymarket to selected Kalshi expiry horizon
     poly_matched = {}
-    if data.get("poly_markets"):
+    if data.get("poly_markets") and threshold_analyses:
         try:
-            poly_matched = polymarket_client.match_to_kalshi(
-                data["poly_markets"], threshold_analyses,
+            target_hours = threshold_analyses[0]["hours_to_expiry"]
+            poly_matched = polymarket_client.adjust_to_horizon(
+                data["poly_markets"], target_hours,
                 vol_model_fn=lambda thresh, hrs, direction: vol_model.compute_fair_value(
                     spot=spot_price, threshold=thresh, hours_to_expiry=hrs,
                     direction=direction, implied_vol=iv, realized_vol=rv,
@@ -1148,11 +1149,19 @@ def _render_hero_chart(threshold_analyses, spot, forward=None, poly_probs=None):
         hovertemplate="$%{x:,.0f}<br>Model: %{y:.1%}<extra></extra>",
     ))
 
-    # Polymarket (time-adjusted)
+    # Polymarket (time-adjusted to Kalshi horizon)
     if poly_probs:
-        poly_x = [a["params"]["threshold"] for a in pts if a["params"]["threshold"] in poly_probs]
-        poly_y = [poly_probs[t]["poly_prob_adjusted"] for t in poly_x]
-        if poly_y:
+        # plot at Polymarket's own thresholds, filtered to chart x-range
+        kalshi_thresholds = [a["params"]["threshold"] for a in pts]
+        x_lo = min(kalshi_thresholds) - 2000
+        x_hi = max(kalshi_thresholds) + 2000
+        poly_sorted = sorted(
+            ((t, d) for t, d in poly_probs.items() if x_lo <= t <= x_hi),
+            key=lambda td: td[0],
+        )
+        if poly_sorted:
+            poly_x = [t for t, _ in poly_sorted]
+            poly_y = [d["poly_prob_adjusted"] for _, d in poly_sorted]
             fig.add_trace(go.Scatter(
                 x=poly_x, y=poly_y,
                 mode="lines+markers",

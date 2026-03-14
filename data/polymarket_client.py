@@ -129,74 +129,47 @@ def parse_markets(events: list[dict]) -> list[dict]:
     return markets
 
 
-def match_to_kalshi(poly_markets, kalshi_analyses, vol_model_fn) -> dict:
+def adjust_to_horizon(poly_markets, target_hours, vol_model_fn) -> dict:
     """
-    Match Polymarket thresholds to Kalshi thresholds and time-adjust
-    probabilities using the vol model.
+    Time-adjust Polymarket probabilities to a target expiry horizon.
+    Standalone — no Kalshi date matching required.
 
     vol_model_fn(threshold, hours, direction) -> model_prob or None
+
+    Returns {threshold: {"poly_prob_raw", "poly_prob_adjusted", "question", ...}}
+    Uses the nearest-expiry Polymarket market per threshold.
     """
-    if not poly_markets or not kalshi_analyses:
+    if not poly_markets or target_hours is None:
         return {}
 
-    # group Kalshi by calendar date
-    kalshi_by_date = {}
-    for a in kalshi_analyses:
-        exp = a.get("expiry")
-        if not exp:
-            continue
-        date_key = exp.date()
-        kalshi_by_date.setdefault(date_key, []).append(a)
-
-    # group Polymarket by calendar date
-    poly_by_date = {}
+    # pick nearest-expiry market per threshold
+    best_per_threshold = {}
     for pm in poly_markets:
-        date_key = pm["expiry"].date()
-        poly_by_date.setdefault(date_key, []).append(pm)
+        t = pm["threshold"]
+        if t not in best_per_threshold or pm["poly_expiry_hours"] < best_per_threshold[t]["poly_expiry_hours"]:
+            best_per_threshold[t] = pm
 
     result = {}
+    for threshold, pm in best_per_threshold.items():
+        poly_hours = pm["poly_expiry_hours"]
+        poly_prob = pm["market_prob"]
+        direction = pm["direction"]
 
-    for date_key in poly_by_date:
-        if date_key not in kalshi_by_date:
-            continue
+        adjusted = poly_prob
+        try:
+            model_at_poly = vol_model_fn(threshold, poly_hours, direction)
+            model_at_target = vol_model_fn(threshold, target_hours, direction)
+            if model_at_poly and model_at_poly > 0.01 and model_at_target is not None:
+                ratio = model_at_target / model_at_poly
+                adjusted = max(0.0, min(1.0, poly_prob * ratio))
+        except Exception:
+            pass
 
-        kalshi_thresholds = {a["params"]["threshold"]: a for a in kalshi_by_date[date_key]}
-
-        for pm in poly_by_date[date_key]:
-            # find nearest Kalshi threshold within $1000
-            best_kalshi = None
-            best_dist = 1001
-            for kt, ka in kalshi_thresholds.items():
-                dist = abs(kt - pm["threshold"])
-                if dist < best_dist:
-                    best_dist = dist
-                    best_kalshi = ka
-
-            if best_kalshi is None or best_dist > 1000:
-                continue
-
-            threshold = best_kalshi["params"]["threshold"]
-            direction = best_kalshi["params"].get("direction", "above")
-            kalshi_hours = best_kalshi["hours_to_expiry"]
-            poly_hours = pm["poly_expiry_hours"]
-            poly_prob = pm["market_prob"]
-
-            # time-adjust using vol model ratio
-            adjusted = poly_prob
-            try:
-                model_at_poly = vol_model_fn(threshold, poly_hours, direction)
-                model_at_kalshi = vol_model_fn(threshold, kalshi_hours, direction)
-                if model_at_poly and model_at_poly > 0.01 and model_at_kalshi is not None:
-                    ratio = model_at_kalshi / model_at_poly
-                    adjusted = max(0.0, min(1.0, poly_prob * ratio))
-            except Exception:
-                pass
-
-            result[threshold] = {
-                "poly_prob_raw": poly_prob,
-                "poly_prob_adjusted": adjusted,
-                "question": pm["question"],
-                "time_offset_hrs": poly_hours - kalshi_hours,
-            }
+        result[threshold] = {
+            "poly_prob_raw": poly_prob,
+            "poly_prob_adjusted": adjusted,
+            "question": pm["question"],
+            "time_offset_hrs": poly_hours - target_hours,
+        }
 
     return result

@@ -52,6 +52,40 @@ st.markdown("""
         --signal-long: #2D8F4E;
         --signal-short: #B83B36;
         --synthesis: #7E5EA8;
+        --chart-bg: #FFFFFF;
+        --chart-plot-bg: #FAFAF8;
+        --chart-grid: #ECEAE6;
+        --chart-zeroline: #E2E0DB;
+        --chart-text: #5C5850;
+        --chart-title: #1A1814;
+        --chart-hover-bg: #FFFFFF;
+        --chart-marker-border: #FFFFFF;
+    }
+
+    @media (prefers-color-scheme: dark) {
+        :root {
+            --bg-deep: #0E1117;
+            --bg-card: #1A1D24;
+            --bg-elevated: #262A33;
+            --border: #343842;
+            --border-subtle: #2A2E38;
+            --text-primary: #E6E6E6;
+            --text-secondary: #A8A8A8;
+            --text-muted: #6B7280;
+            --accent-copper: #C49A5C;
+            --accent-teal: #4DAACC;
+            --signal-long: #3EBD6B;
+            --signal-short: #E05252;
+            --synthesis: #9B7FCC;
+            --chart-bg: rgba(0,0,0,0);
+            --chart-plot-bg: rgba(0,0,0,0);
+            --chart-grid: #2A2E38;
+            --chart-zeroline: #343842;
+            --chart-text: #A8A8A8;
+            --chart-title: #E6E6E6;
+            --chart-hover-bg: #1A1D24;
+            --chart-marker-border: #1A1D24;
+        }
     }
 
     html, body, [data-testid="stAppViewContainer"], [data-testid="stApp"] {
@@ -381,32 +415,74 @@ CHART_COLORS = {
 EXPIRY_COLORS = ["#2E7D96", "#2D8F4E", "#9A7B4F", "#7E5EA8", "#C07D3A", "#B83B36"]
 
 
+def _is_dark_theme() -> bool:
+    """Detect Streamlit dark theme via explicit config or system default."""
+    try:
+        theme = st.get_option("theme.base")
+        if theme == "dark":
+            return True
+        if theme == "light":
+            return False
+    except Exception:
+        pass
+    return False
+
+
+_THEME = {
+    "light": dict(
+        paper_bg="#FFFFFF", plot_bg="#FAFAF8",
+        grid="#ECEAE6", zeroline="#E2E0DB",
+        text="#5C5850", title="#1A1814",
+        hover_bg="#FFFFFF", hover_border="#E2E0DB",
+        marker_border="#FFFFFF", annotation_bg="#FFFFFF",
+    ),
+    "dark": dict(
+        paper_bg="rgba(0,0,0,0)", plot_bg="rgba(0,0,0,0)",
+        grid="#2A2E38", zeroline="#343842",
+        text="#A8A8A8", title="#E6E6E6",
+        hover_bg="#1A1D24", hover_border="#343842",
+        marker_border="#1A1D24", annotation_bg="#1A1D24",
+    ),
+}
+
+
+def _t():
+    """Return the active theme palette."""
+    return _THEME["dark"] if _is_dark_theme() else _THEME["light"]
+
+
 def chart_layout(**overrides) -> dict:
-    """Base Plotly layout — light, Apple-esque."""
+    """Base Plotly layout — adapts to light/dark theme."""
+    t = _t()
     base = dict(
-        paper_bgcolor="#FFFFFF",
-        plot_bgcolor="#FAFAF8",
-        font=dict(family="Azeret Mono, monospace", color="#5C5850", size=11),
+        paper_bgcolor=t["paper_bg"],
+        plot_bgcolor=t["plot_bg"],
+        font=dict(family="Azeret Mono, monospace", color=t["text"], size=11),
         margin=dict(l=12, r=12, t=44, b=12),
         xaxis=dict(
-            gridcolor="#ECEAE6", zerolinecolor="#E2E0DB",
-            tickfont=dict(size=10),
+            gridcolor=t["grid"], zerolinecolor=t["zeroline"],
+            tickfont=dict(size=10, color=t["text"]),
         ),
         yaxis=dict(
-            gridcolor="#ECEAE6", zerolinecolor="#E2E0DB",
-            tickfont=dict(size=10),
+            gridcolor=t["grid"], zerolinecolor=t["zeroline"],
+            tickfont=dict(size=10, color=t["text"]),
         ),
         legend=dict(
-            bgcolor="rgba(255,255,255,0)", bordercolor="rgba(0,0,0,0)",
-            font=dict(size=10),
+            bgcolor="rgba(0,0,0,0)", bordercolor="rgba(0,0,0,0)",
+            font=dict(size=10, color=t["text"]),
         ),
         hoverlabel=dict(
-            bgcolor="#FFFFFF", bordercolor="#E2E0DB",
-            font=dict(family="Azeret Mono", size=11, color="#1A1814"),
+            bgcolor=t["hover_bg"], bordercolor=t["hover_border"],
+            font=dict(family="Azeret Mono", size=11, color=t["title"]),
         ),
     )
     base.update(overrides)
     return base
+
+
+def _title_font(size=14):
+    """Returns a title font dict that adapts to theme."""
+    return dict(size=size, family="Georgia, serif", color=_t()["title"])
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -642,10 +718,10 @@ def render_vol_smile(vol_surface, spot):
     )
 
     fig.update_layout(**chart_layout(
-        title=dict(text="Volatility Smile", font=dict(size=14, family="Georgia, serif", color="#1A1814")),
+        title=dict(text="Volatility Smile", font=_title_font(14)),
         xaxis_title="Strike ($)", yaxis_title="Implied Volatility (%)",
         height=380,
-        xaxis=dict(tickformat="$,.0f", gridcolor="#ECEAE6"),
+        xaxis=dict(tickformat="$,.0f", gridcolor=_t()["grid"]),
     ))
     st.plotly_chart(fig, use_container_width=True)
 
@@ -677,12 +753,12 @@ def render_term_structure(vol_surface, spot):
         mode="lines+markers",
         line=dict(color=CHART_COLORS["gold"], width=2.5),
         marker=dict(size=7, color=CHART_COLORS["gold"],
-                    line=dict(width=1.5, color="#FFFFFF")),
+                    line=dict(width=1.5, color=_t()["marker_border"])),
         hovertemplate="Tenor: %{x:.0f}h<br>ATM IV: %{y:.1f}%<extra></extra>",
     ))
 
     fig.update_layout(**chart_layout(
-        title=dict(text="ATM Term Structure", font=dict(size=14, family="Georgia, serif", color="#1A1814")),
+        title=dict(text="ATM Term Structure", font=_title_font(14)),
         xaxis_title="Hours to Expiry", yaxis_title="ATM IV (%)",
         height=340,
         xaxis=dict(type="log"),
@@ -730,16 +806,19 @@ def render_vol_heatmap(vol_surface, spot):
         z=z,
         x=tenor_labels,
         y=[f"${s/1000:.0f}k" for s in strikes],
-        colorscale=[
+        colorscale=([
+            [0, "#1A1D24"], [0.25, "#1E4D5C"], [0.5, "#2E7D96"],
+            [0.75, "#C9A87C"], [1, "#E05252"]
+        ] if _is_dark_theme() else [
             [0, "#F0EFEC"], [0.25, "#C8DDE6"], [0.5, "#6BA3BE"],
             [0.75, "#C9A87C"], [1, "#B83B36"]
-        ],
+        ]),
         colorbar=dict(title=dict(text="IV %", font=dict(size=10))),
         hovertemplate="Strike: %{y}<br>Expiry: %{x}<br>IV: %{z:.1f}%<extra></extra>",
     ))
 
     fig.update_layout(**chart_layout(
-        title=dict(text="Volatility Surface", font=dict(size=14, family="Georgia, serif", color="#1A1814")),
+        title=dict(text="Volatility Surface", font=_title_font(14)),
         height=420,
         xaxis_title="Expiry", yaxis_title="Strike",
     ))
@@ -779,14 +858,14 @@ def render_edge_scatter(analyses, spot):
             y=[p["edge"] for p in subset],
             mode="markers",
             name=name,
-            marker=dict(color=color, size=9, line=dict(width=1, color="#FFFFFF")),
+            marker=dict(color=color, size=9, line=dict(width=1, color=_t()["marker_border"])),
             text=[p["label"] for p in subset],
             hovertemplate="%{text}<br>Distance: %{x:+.1f}%<br>Discrepancy: %{y:+.1f}%<extra></extra>",
         ))
 
     # reference lines
-    fig.add_hline(y=0, line_color="#E2E0DB", line_width=1)
-    fig.add_vline(x=0, line_color="#E2E0DB", line_width=1)
+    fig.add_hline(y=0, line_color=_t()["zeroline"], line_width=1)
+    fig.add_vline(x=0, line_color=_t()["zeroline"], line_width=1)
     fig.add_hline(y=5, line_dash="dot", line_color=CHART_COLORS["emerald"], opacity=0.3)
     fig.add_hline(y=-5, line_dash="dot", line_color=CHART_COLORS["rose"], opacity=0.3)
 
@@ -805,7 +884,7 @@ def render_edge_scatter(analyses, spot):
     )
 
     fig.update_layout(**chart_layout(
-        title=dict(text="Discrepancy vs Distance from Spot", font=dict(size=14, family="Georgia, serif", color="#1A1814")),
+        title=dict(text="Discrepancy vs Distance from Spot", font=_title_font(14)),
         xaxis_title="Distance from Spot (%)",
         yaxis_title="Discrepancy: Model − Market (%)",
         height=380,
@@ -843,9 +922,9 @@ def render_price_chart(price_history, spot=None, threshold=None):
         )
 
     fig.update_layout(**chart_layout(
-        title=dict(text="BTC — 24h", font=dict(size=14, family="Georgia, serif", color="#1A1814")),
+        title=dict(text="BTC — 24h", font=_title_font(14)),
         height=260,
-        yaxis=dict(tickformat="$,.0f", gridcolor="#ECEAE6",
+        yaxis=dict(tickformat="$,.0f", gridcolor=_t()["grid"],
                    range=[y_min - y_pad, y_max + y_pad]),
     ))
     st.plotly_chart(fig, use_container_width=True)
@@ -894,12 +973,12 @@ def render_prob_comparison_detail(params, fv, sig):
             xref="paper", yref="paper", x=0.95, y=0.95,
             showarrow=False,
             font=dict(size=13, color=edge_color, family="Azeret Mono"),
-            bgcolor="#FFFFFF", bordercolor=edge_color,
+            bgcolor=_t()["annotation_bg"], bordercolor=edge_color,
             borderwidth=1, borderpad=6,
         )
 
     fig.update_layout(**chart_layout(
-        title=dict(text="Probability Comparison", font=dict(size=14, family="Georgia, serif", color="#1A1814")),
+        title=dict(text="Probability Comparison", font=_title_font(14)),
         height=300,
         yaxis_tickformat=".0%",
         yaxis_range=[0, max(vals) * 1.3] if vals else [0, 1],
@@ -1194,18 +1273,18 @@ def _render_hero_chart(threshold_analyses, spot, forward=None, poly_probs=None):
     fig.update_layout(**chart_layout(
         title=dict(
             text="Options Market vs Prediction Market",
-            font=dict(size=15, family="Georgia, serif", color="#1A1814"),
+            font=_title_font(15),
         ),
         xaxis_title="BTC Threshold ($)",
         yaxis_title="P(BTC Above Threshold)",
         yaxis_tickformat=".0%",
-        xaxis=dict(tickformat="$,.0f", gridcolor="#ECEAE6"),
+        xaxis=dict(tickformat="$,.0f", gridcolor=_t()["grid"]),
         hovermode="x unified",
         height=440,
         legend=dict(
             orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5,
-            bgcolor="rgba(255,255,255,0)", bordercolor="rgba(0,0,0,0)",
-            font=dict(size=11),
+            bgcolor="rgba(0,0,0,0)", bordercolor="rgba(0,0,0,0)",
+            font=dict(size=11, color=_t()["text"]),
         ),
     ))
     st.plotly_chart(fig, use_container_width=True)
@@ -1532,6 +1611,7 @@ the midpoint of 0/ask is not a meaningful probability estimate.
 |--------|------|------|
 | **Deribit** | BTC spot (index), ~900 BTC options, DVOL | Public |
 | **Kalshi** | Market listings, pricing | Public |
+| **Polymarket** | BTC threshold event markets | Public |
 | **CoinGecko** | 24h price history for realized vol | Public |
 
 ### Implied Volatility
@@ -1545,6 +1625,20 @@ Interpolation between expiry tenors uses **total variance space** (σ²t)
 to avoid calendar spread arbitrage artifacts.
 
 Falls back to the **DVOL index** (30-day IV) when no close match exists.
+
+### Polymarket Integration
+
+Polymarket offers BTC threshold markets ("Bitcoin above $X") that settle
+on different dates than Kalshi. To compare them on the same chart, we
+**time-adjust** Polymarket probabilities to the Kalshi expiry horizon:
+
+1. Extract the original Polymarket probability and its settlement date
+2. Back out an implied probability per unit time
+3. Re-project to the Kalshi expiry horizon using the options-based vol model
+4. Plot as a third curve alongside Kalshi and the options model
+
+This reveals cross-venue pricing discrepancies — where two prediction
+markets disagree on the same underlying event.
 
 ### Realized Volatility
 
@@ -1604,6 +1698,11 @@ when unconfigured.
 - **Constant vol per horizon**: surface lookup helps but within-horizon
   clustering not modeled
 - **Settlement basis**: Kalshi settles on CF Benchmarks BRTI; model uses Deribit index
+- **Polymarket time-adjustment**: assumes vol-model probabilities are valid
+  for rescaling across settlement horizons — breaks down for very short or
+  very long tenor differences
+- **Cross-venue thresholds**: Polymarket and Kalshi may use slightly different
+  strike granularity; the overlay is approximate
 - **Risk-neutral vs physical**: options IV contains a risk premium
 - **No jump diffusion**: macro events create discrete gaps
 - **No microstructure**: order flow, slippage, market impact not modeled
